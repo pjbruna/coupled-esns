@@ -1,0 +1,92 @@
+---
+title: "accuracy"
+author: "Polyphony J. Bruna"
+date: "2025-01-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+performance_data <- read.csv("data/s23_randreset_100runs/performance.csv") %>%
+  filter(timestep!=1)
+```
+
+```{r}
+indiv_esn_perf <- performance_data %>%
+  filter(model!="joint") %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+ggplot(indiv_esn_perf, aes(x=coupling, y=m, fill=model, color=model, group=model)) +
+  geom_point(alpha=0.5) +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.1, linetype = 0) +
+  geom_line() +
+  labs(x="Coupling", y="Accuracy (%)", fill="ESN", color="ESN") +
+  theme_bw()
+```
+
+```{r}
+avg_esn_perf <- performance_data %>%
+  filter(model!="joint") %>%
+  group_by(coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n())) %>%
+  mutate(model="avg")
+
+joint_esn_perf <- performance_data %>% 
+  filter(model=="joint") %>%
+  group_by(coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n())) %>%
+  mutate(model="joint")
+
+avg_acc <- rbind(avg_esn_perf, joint_esn_perf)
+```
+
+```{r}
+ggplot(avg_acc, aes(x=coupling, y=m, fill=model, color=model, group=model)) +
+  geom_point(alpha=0.5) +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.1, linetype = 0) +
+  geom_line() +
+  labs(x="Coupling", y="Accuracy (%)", fill="Measure", color="Measure") +
+  theme_bw()
+```
+
+```{r}
+avg_perf_timeseries <- performance_data %>%
+  filter(model!="joint") %>%
+  group_by(run_idx, model, coupling, signal_idx) %>%
+  mutate(norm_t = (timestep - min(timestep)) / (max(timestep) - min(timestep))) %>%
+  mutate(norm_t = round(norm_t, 1)) %>%
+  group_by(coupling, norm_t) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n())) %>%
+  mutate(model="avg")
+
+joint_perf_timeseries <- performance_data %>%
+  filter(model=="joint") %>%
+  group_by(run_idx, model, coupling, signal_idx) %>%
+  mutate(norm_t = (timestep - min(timestep)) / (max(timestep) - min(timestep))) %>%
+  mutate(norm_t = round(norm_t, 1)) %>%
+  group_by(model, coupling, norm_t) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+perf_timeseries <- rbind(avg_perf_timeseries, joint_perf_timeseries)
+
+ggplot(perf_timeseries, aes(x=norm_t, y=m, color=model, fill=model)) +
+  facet_wrap(~coupling) +
+  geom_point(alpha=0.5) +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.1, linetype = 0) +
+  geom_line() +
+  labs(x="Time (normalized)", y="Accuracy (%)", fill="Measure", color="Measure") +
+  geom_hline(yintercept=0.5, linetype="dotted") +
+  theme_bw()
+```
+
+
+
+

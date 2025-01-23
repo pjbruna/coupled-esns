@@ -1,0 +1,264 @@
+---
+title: "testing"
+author: "Polyphony J. Bruna"
+date: "2025-01-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+y_data <- data.frame(
+  n1 = numeric(),
+  n2 = numeric(),
+  model = character(),
+  coupling = character())
+
+for(i in c("0.0")){
+  y1 <- read.csv(paste0("data/s23_randreset_8runs/Y1_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "1",
+           coupling = i)
+  
+  y2 <- read.csv(paste0("data/s23_randreset_8runs/Y2_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "2",
+           coupling = i)
+  
+  y_joint <- data.frame("n1" = rowMeans(cbind(y1$n1, y2$n1)),
+                        "n2" = rowMeans(cbind(y1$n2, y2$n2)),
+                        "model" = "joint",
+                        "coupling" = i)
+  
+  y_data <- rbind(y_data, y1, y2, y_joint)
+}
+```
+
+```{r}
+meta_data <- read.csv("data/s23_randreset_8runs/meta_data.csv")
+
+target_data <- read.csv("data/s23_randreset_8runs/targets.csv") %>%
+  select(!X) %>%
+  setNames(c("target_n1", "target_n2"))
+
+data <- cbind(y_data, target_data, meta_data) %>%
+  mutate(model = factor(model),
+         coupling = factor(coupling)) %>%
+  group_by(model, coupling, run_idx, signal_idx) %>%
+  mutate(timestep = row_number())
+```
+
+```{r}
+if(mean(data$n1 == data$n2)==0){
+  performance_data <- data %>%
+    rowwise() %>%
+    mutate(response = which.max(c(n1, n2)),
+           target = which.max(c(target_n1, target_n2)),
+           correct = ifelse(response==target, 1, 0))
+} else {
+  print("Error: equivalent responses")
+}
+```
+
+```{r}
+performance_data <- performance_data %>%
+  filter(timestep!=1)
+```
+
+```{r}
+indiv_esn_perf <- performance_data %>%
+  filter(model!="joint") %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+indiv_esn_perf
+```
+
+### Add a group
+
+```{r}
+y_data <- data.frame(
+  n1 = numeric(),
+  n2 = numeric(),
+  model = character(),
+  coupling = character())
+
+for(i in c("0.0")){
+  y1 <- read.csv(paste0("data/s23_randreset_8.1runs/Y1_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "1",
+           coupling = i)
+  
+  y2 <- read.csv(paste0("data/s23_randreset_8.1runs/Y2_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "2",
+           coupling = i)
+  
+  y_joint <- data.frame("n1" = rowMeans(cbind(y1$n1, y2$n1)),
+                        "n2" = rowMeans(cbind(y1$n2, y2$n2)),
+                        "model" = "joint",
+                        "coupling" = i)
+  
+  y_data <- rbind(y_data, y1, y2, y_joint)
+}
+```
+
+```{r}
+meta_data <- read.csv("data/s23_randreset_8.1runs/meta_data.csv") %>%
+  mutate(run_idx = run_idx + 8)
+
+target_data <- read.csv("data/s23_randreset_8.1runs/targets.csv") %>%
+  select(!X) %>%
+  setNames(c("target_n1", "target_n2"))
+
+data <- cbind(y_data, target_data, meta_data) %>%
+  mutate(model = factor(model),
+         coupling = factor(coupling)) %>%
+  group_by(model, coupling, run_idx, signal_idx) %>%
+  mutate(timestep = row_number())
+```
+
+```{r}
+if(mean(data$n1 == data$n2)==0){
+  performance_data_8.1 <- data %>%
+    rowwise() %>%
+    mutate(response = which.max(c(n1, n2)),
+           target = which.max(c(target_n1, target_n2)),
+           correct = ifelse(response==target, 1, 0))
+} else {
+  print("Error: equivalent responses")
+}
+```
+
+```{r}
+performance_data_8.1 <- performance_data_8.1 %>%
+  filter(timestep!=1)
+
+# performance_data <- rbind(performance_data, performance_data_8.1)
+```
+
+```{r}
+indiv_esn_perf <- performance_data_8.1 %>%
+  filter(model!="joint") %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+indiv_esn_perf
+```
+
+```{r}
+performance_data <- performance_data %>%
+  filter(model!="joint")
+
+performance_data_8.1 <- performance_data_8.1 %>%
+  filter(model!="joint")
+
+combo1 <- rbind(performance_data, performance_data_8.1)
+```
+
+```{r}
+indiv_esn_perf <- combo1 %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+indiv_esn_perf
+```
+
+### Add a group
+
+```{r}
+y_data <- data.frame(
+  n1 = numeric(),
+  n2 = numeric(),
+  model = character(),
+  coupling = character())
+
+for(i in c("0.0")){
+  y1 <- read.csv(paste0("data/s23_randreset_8.2runs/Y1_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "1",
+           coupling = i)
+  
+  y2 <- read.csv(paste0("data/s23_randreset_8.2runs/Y2_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+    select(!X) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "2",
+           coupling = i)
+  
+  y_joint <- data.frame("n1" = rowMeans(cbind(y1$n1, y2$n1)),
+                        "n2" = rowMeans(cbind(y1$n2, y2$n2)),
+                        "model" = "joint",
+                        "coupling" = i)
+  
+  y_data <- rbind(y_data, y1, y2, y_joint)
+}
+```
+
+```{r}
+meta_data <- read.csv("data/s23_randreset_8.2runs/meta_data.csv") %>%
+  mutate(run_idx = run_idx + 16)
+
+target_data <- read.csv("data/s23_randreset_8.2runs/targets.csv") %>%
+  select(!X) %>%
+  setNames(c("target_n1", "target_n2"))
+
+data <- cbind(y_data, target_data, meta_data) %>%
+  mutate(model = factor(model),
+         coupling = factor(coupling)) %>%
+  group_by(model, coupling, run_idx, signal_idx) %>%
+  mutate(timestep = row_number())
+```
+
+```{r}
+if(mean(data$n1 == data$n2)==0){
+  performance_data_8.2 <- data %>%
+    rowwise() %>%
+    mutate(response = which.max(c(n1, n2)),
+           target = which.max(c(target_n1, target_n2)),
+           correct = ifelse(response==target, 1, 0))
+} else {
+  print("Error: equivalent responses")
+}
+```
+
+```{r}
+performance_data_8.2 <- performance_data_8.2 %>%
+  filter(timestep!=1)
+
+# performance_data <- rbind(performance_data, performance_data_8.1)
+```
+
+```{r}
+indiv_esn_perf <- performance_data_8.2 %>%
+  filter(model!="joint") %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+indiv_esn_perf
+```
+
+```{r}
+performance_data_8.2 <- performance_data_8.2 %>%
+  filter(model!="joint")
+
+combo2 <- rbind(combo1, performance_data_8.2)
+```
+
+```{r}
+indiv_esn_perf <- combo2 %>%
+  group_by(model, coupling) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+indiv_esn_perf
+```
