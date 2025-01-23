@@ -21,13 +21,13 @@ y_data <- data.frame(
   coupling = character())
 
 for(i in c("0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")){
-  y1 <- read.csv(paste0("data/s23_randreset_100runs/Y1_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+  y1 <- read.csv(paste0("data/s23_randreset_batch5/Y1_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
     select(!X) %>%
     setNames(c("n1", "n2")) %>%
     mutate(model = "1",
            coupling = i)
   
-  y2 <- read.csv(paste0("data/s23_randreset_100runs/Y2_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
+  y2 <- read.csv(paste0("data/s23_randreset_batch5/Y2_cs=", i, "_ns=0.0_r1=100_r2=100.csv")) %>%
     select(!X) %>%
     setNames(c("n1", "n2")) %>%
     mutate(model = "2",
@@ -43,9 +43,9 @@ for(i in c("0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9",
 ```
 
 ```{r}
-meta_data <- read.csv("data/s23_randreset_100runs/meta_data.csv")
+meta_data <- read.csv("data/s23_randreset_batch5/meta_data.csv")
 
-target_data <- read.csv("data/s23_randreset_100runs/targets.csv") %>%
+target_data <- read.csv("data/s23_randreset_batch5/targets.csv") %>%
   select(!X) %>%
   setNames(c("target_n1", "target_n2"))
 
@@ -64,7 +64,7 @@ if(mean(data$n1 == data$n2)==0){
            target = which.max(c(target_n1, target_n2)),
            correct = ifelse(response==target, 1, 0))
   
-  write.csv(performance_data, file="data/s23_randreset_100runs/performance.csv")
+  write.csv(performance_data, file="data/s23_randreset_batch5/performance.csv")
 } else {
   print("Error: equivalent responses")
 }
