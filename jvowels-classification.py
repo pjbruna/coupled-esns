@@ -52,9 +52,9 @@ def run_models(index):
 
         for t in range(len(x)):
             if t==0:
-                input_fb = Concat().run((x[t], np.array(np.zeros(len(y[t])))))
+                input_fb = np.concatenate((x[t], np.array(np.zeros(len(y[t])))), axis=None)
             else:
-                input_fb = Concat().run((x[t], fbs * y[t]))
+                input_fb = np.concatenate((x[t], fbs * y[t]), axis=None)
 
             r1[t] = reservoir1.run(input_fb)
             r2[t] = reservoir2.run(input_fb)
@@ -105,11 +105,11 @@ def run_models(index):
             noise = ns * np.random.randn(*x[t].shape)
 
             if t==0:
-                input_fb1 = Concat().run(((noise + x[t]) * mask1, readout1.zero_state()))
-                input_fb2 = Concat().run(((noise + x[t]) * mask2, readout2.zero_state()))
+                input_fb1 = np.concatenate(((noise + x[t]) * mask1, readout1.zero_state()), axis=None) # Concat().run(((noise + x[t]) * mask1, readout1.zero_state()))
+                input_fb2 = np.concatenate(((noise + x[t]) * mask2, readout2.zero_state()), axis=None) # Concat().run(((noise + x[t]) * mask2, readout2.zero_state()))
             else:
-                input_fb1 = Concat().run(((noise + x[t]) * mask1, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[(1-cs), cs])))
-                input_fb2 = Concat().run(((noise + x[t]) * mask2, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[cs, (1-cs)])))
+                input_fb1 = np.concatenate(((noise + x[t]) * mask1, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[(1-cs), cs])), axis=None) # Concat().run(((noise + x[t]) * mask1, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[(1-cs), cs])))
+                input_fb2 = np.concatenate(((noise + x[t]) * mask2, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[cs, (1-cs)])), axis=None) # Concat().run(((noise + x[t]) * mask2, fbs * np.average([readout1.state(), readout2.state()], axis=0, weights=[cs, (1-cs)])))
 
             state1 = reservoir1.run(input_fb1)
             state2 = reservoir2.run(input_fb2)
@@ -237,13 +237,13 @@ if __name__ == "__main__":
     R1 = pd.DataFrame(np.vstack(R_states1))
     R2 = pd.DataFrame(np.vstack(R_states2))
 
-    Y1.to_csv(f'data/s23_randreset_batch5/Y1_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
-    Y2.to_csv(f'data/s23_randreset_batch5/Y2_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
-    R1.to_csv(f'data/s23_randreset_batch5/R1_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
-    R2.to_csv(f'data/s23_randreset_batch5/R2_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
+    Y1.to_csv(f'data/124patch_batch5/Y1_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
+    Y2.to_csv(f'data/124patch_batch5/Y2_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
+    R1.to_csv(f'data/124patch_batch5/R1_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
+    R2.to_csv(f'data/124patch_batch5/R2_cs={cs}_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv')
 
     targets = pd.DataFrame(np.tile(np.concatenate(Y_test), (runs,1)))
-    targets.to_csv(f'data/s23_randreset_batch5/targets.csv')
+    targets.to_csv(f'data/124patch_batch5/targets.csv')
 
     signal_idx = np.tile(np.concatenate([np.full(signal.shape[0], i+1) for i, signal in enumerate(X_test)]), runs)
 
@@ -253,4 +253,4 @@ if __name__ == "__main__":
     }
 
     meta_data = pd.DataFrame(meta_data)
-    meta_data.to_csv(f'data/s23_randreset_batch5/meta_data.csv', index=False)
+    meta_data.to_csv(f'data/124patch_batch5/meta_data.csv', index=False)
