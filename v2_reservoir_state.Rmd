@@ -1,0 +1,97 @@
+---
+title: "v2_reservoir_state"
+author: "Polyphony J. Bruna"
+date: "2025-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(viridis)
+```
+
+```{r}
+# r1 <- read.csv(paste0("data/v2_s23_randreset_batch1/R1_ns=0.0_r1=100_r2=100.csv"))
+# 
+# r2 <- read.csv(paste0("data/v2_s23_randreset_batch1/R2_ns=0.0_r1=100_r2=100.csv"))
+# colnames(r2) <- paste0('2_', colnames(r2))
+# 
+# res_data <- cbind(r1, r2)
+# 
+# meta_data <- read.csv(paste0("data/v2_s23_randreset_batch1/meta_data.csv"))
+```
+
+```{r}
+# for(i in c(1:4)){
+#   r1 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/R1_ns=0.0_r1=100_r2=100.csv"))
+#   
+#   r2 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/R2_ns=0.0_r1=100_r2=100.csv"))
+#   colnames(r2) <- paste0('2_', colnames(r2))
+#   
+#   r_data <- cbind(r1, r2)
+#   res_data <- rbind(res_data, r_data)
+#   
+#   m_data <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/meta_data.csv")) %>%
+#     mutate(run_idx = run_idx + (8*i))
+#   
+#   meta_data <- rbind(meta_data, m_data)
+# }
+```
+
+```{r}
+# data <- cbind(res_data, meta_data) %>%
+#   mutate(coupling = factor(coupling),
+#          signal_idx = factor(signal_idx),
+#          run_idx = factor(run_idx)) %>%
+#   group_by(coupling, run_idx, signal_idx) %>%
+#   mutate(timestep = row_number())
+```
+
+```{r}
+# write.csv(data, file = "data/v2_s23_randreset_rstates.csv")
+```
+
+```{r}
+data <- read.csv("data/v2_s23_randreset_rstates.csv")
+```
+
+# PCA
+
+```{r}
+var_df <- data.frame(
+  comp = numeric(),
+  cumvar = numeric(),
+  coupling = numeric()
+)
+
+for(i in c(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)){
+  rstates <- data %>%
+    ungroup() %>%
+    filter(coupling==i) %>%
+    select(!c(coupling, signal_idx, run_idx, timestep, target_n1, target_n2))
+  
+  pca <- prcomp(rstates, center=T, scale.=T)
+  
+  explained_variance <- pca$sdev^2 / sum(pca$sdev^2)
+  cumulative_variance <- cumsum(explained_variance)
+  
+  vdf <- data.frame(comp = seq_along(cumulative_variance), cumvar = cumulative_variance) %>%
+    mutate(coupling = i)
+  
+  var_df <- rbind(var_df, vdf)
+}
+```
+
+```{r}
+ggplot(var_df %>% filter(coupling %in% c(0.0, 0.2, 0.5, 1.0)), aes(x = comp, y = cumvar, color = as.factor(coupling))) +
+  geom_point(size=0.5) +
+  geom_line() +
+  scale_color_viridis(discrete = T) +
+  labs(title = "Cumulative Explained Variance", x = "Principal Component", y = "Cumulative Variance Explained", color = "Coupling") +
+  theme_bw()
+```

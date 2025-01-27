@@ -559,11 +559,11 @@ variance_df <- rbind(variance_df_0, variance_df_0.2, variance_df_0.5, variance_d
 ```
 
 ```{r}
-ggplot(variance_df, aes(x = comp, y = cumvar, color = coupling)) +
+ggplot(variance_df, aes(x = comp, y = cumvar, color = as.factor(coupling))) +
   geom_point(size=0.5) +
   geom_line() +
-  labs(title = "Cumulative Explained Variance",
-       x = "Principal Component", y = "Cumulative Variance Explained") +
+  scale_color_viridis(discrete = T) +
+  labs(title = "Cumulative Explained Variance", x = "Principal Component", y = "Cumulative Variance Explained", color = "Coupling") +
   theme_bw()
 ```
 

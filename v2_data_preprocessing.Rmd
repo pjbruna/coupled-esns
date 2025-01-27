@@ -1,0 +1,77 @@
+---
+title: "v2_data_preprocessing"
+author: "Polyphony J. Bruna"
+date: "2025-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+y_data <- data.frame(
+  n1 = numeric(),
+  n2 = numeric(),
+  model = character())
+
+meta_data <- data.frame(
+  coupling = numeric(),
+  signal_idx = numeric(),
+  run_idx = numeric(),
+  target_n1 = numeric(),
+  target_n2 = numeric())
+
+for(i in c(0:4)){
+  y1 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y1_ns=0.0_r1=100_r2=100.csv")) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "1")
+  
+  y2 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y2_ns=0.0_r1=100_r2=100.csv")) %>%
+    setNames(c("n1", "n2")) %>%
+    mutate(model = "2")
+  
+  y_joint <- data.frame("n1" = rowMeans(cbind(y1$n1, y2$n1)),
+                        "n2" = rowMeans(cbind(y1$n2, y2$n2)),
+                        "model" = "joint")
+  
+  y_data <- rbind(y_data, y1, y2, y_joint)
+  
+  m_data <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/meta_data.csv")) %>%
+    mutate(run_idx = run_idx + (8*i))
+  
+  meta_data <- rbind(meta_data, m_data)
+}
+```
+
+```{r}
+data <- cbind(y_data, meta_data) %>%
+  mutate(model = factor(model),
+         coupling = factor(coupling),
+         signal_idx = factor(signal_idx),
+         run_idx = factor(run_idx)) %>%
+  group_by(model, coupling, run_idx, signal_idx) %>%
+  mutate(timestep = row_number())
+```
+
+```{r}
+if(mean(data$n1 == data$n2)==0){
+  performance_data <- data %>%
+    rowwise() %>%
+    mutate(response = which.max(c(n1, n2)),
+           target = which.max(c(target_n1, target_n2)),
+           correct = ifelse(response==target, 1, 0))
+  
+  write.csv(performance_data, file="data/v2_s23_randreset_performance.csv")
+} else {
+  print("Error: equivalent responses")
+}
+```
+
+
+
+

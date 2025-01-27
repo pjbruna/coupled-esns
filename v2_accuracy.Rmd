@@ -1,7 +1,7 @@
 ---
-title: "accuracy"
+title: "v2_accuracy"
 author: "Polyphony J. Bruna"
-date: "2025-01-22"
+date: "2025-01-26"
 output: html_document
 ---
 
@@ -15,23 +15,7 @@ library(viridis)
 ```
 
 ```{r}
-performance_data1 <- read.csv("data/s23_randreset_batch1/performance.csv")
-
-performance_data2 <- read.csv("data/s23_randreset_batch2/performance.csv") %>%
-  mutate(run_idx = run_idx + 8)
-
-performance_data3 <- read.csv("data/s23_randreset_batch3/performance.csv") %>%
-  mutate(run_idx = run_idx + 16)
-
-performance_data4 <- read.csv("data/s23_randreset_batch4/performance.csv") %>%
-  mutate(run_idx = run_idx + 24)
-
-performance_data5 <- read.csv("data/s23_randreset_batch5/performance.csv") %>%
-  mutate(run_idx = run_idx + 32)
-```
-
-```{r}
-performance_data <- rbind(performance_data1, performance_data2, performance_data3, performance_data4, performance_data5) %>%
+performance_data <- read.csv("data/v2_s23_randreset_performance.csv") %>%
   filter(timestep!=1)
 ```
 
@@ -40,10 +24,12 @@ performance_data <- rbind(performance_data1, performance_data2, performance_data
 
 performance_data %>%
   filter(model!="joint") %>%
-  group_by(model, coupling, signal_idx) %>%
-  summarise(m = mean(correct)) %>%
+  group_by(model, coupling, run_idx, signal_idx) %>%
+  summarise(avg_sig_acc = mean(correct)) %>%
+  group_by(coupling, signal_idx) %>%
+  summarise(model, avg_over_runs = mean(avg_sig_acc)) %>%
   group_by(model, coupling) %>%
-  summarise(M = mean(m), SE = sd(m)/sqrt(n())) %>%
+  summarise(m = mean(avg_over_runs), se = sd(avg_over_runs)/sqrt(n())) %>%
   filter(coupling==0)
 ```
 
@@ -90,7 +76,5 @@ ggplot(joint_perf_timeseries, aes(x=norm_t, y=m)) +
   geom_hline(yintercept=0.5, linetype="dotted") +
   theme_bw()
 ```
-
-
 
 
