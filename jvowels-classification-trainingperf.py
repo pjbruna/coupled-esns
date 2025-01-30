@@ -67,7 +67,7 @@ def run_models(index):
     readout2 = readout2.fit(train_states2, Y_train)
 
 
-    ## TEST ##
+    ## TEST (on training set) ##s
 
 
     mask1 = np.array([1,1,1,1,1,1,1,1,1,1,1,1]) # np.array([1,1,1,1,1,1,0,0,0,0,0,0])
@@ -79,20 +79,26 @@ def run_models(index):
     log_R_states2 = []
     log_coupling = []
 
-    for cs in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: # coupling strengths
+    for cs in [0.0]: # coupling strengths # 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
         # print(f'cs: {cs}')
 
         ypred1 = []
         ypred2 = []
         rstates1 = []
         rstates2 = []
-        coupling = np.array([cs] * len(np.vstack(X_test)))
+        coupling = np.array([cs] * len(np.vstack(X_train))) # X_test
 
-        for x in X_test:
+        rmse1 = []
+        rmse2 = []
+
+        for (x, y) in zip(X_train, Y_train): # X_test
             y1 = np.array([np.zeros(readout1.output_dim)] * len(x))
             y2 = np.array([np.zeros(readout2.output_dim)] * len(x))
             r1 = np.array([np.zeros(reservoir1.output_dim)] * len(x))
             r2 = np.array([np.zeros(reservoir2.output_dim)] * len(x))
+
+            loss1 = []
+            loss2 = []
 
             for t in range(len(x)):
                 noise = ns * np.random.randn(*x[t].shape)
@@ -111,6 +117,10 @@ def run_models(index):
                 y1[t] = readout1.run(state1)
                 y2[t] = readout2.run(state2)
 
+                # save loss
+                loss1.append(y[t] - y1[t])
+                loss2.append(y[t] - y2[t])
+
                 # save reservoir states
                 r1[t] = state1
                 r2[t] = state2
@@ -121,12 +131,18 @@ def run_models(index):
             rstates1.append(r1)
             rstates2.append(r2)
 
+            # calculate per-signal rmse
+            rmse1.append(np.sqrt(np.mean(np.mean(np.array(loss1) ** 2, axis=1))))
+            rmse2.append(np.sqrt(np.mean(np.mean(np.array(loss2) ** 2, axis=1))))
+
             # reset reservoirs
             reservoir1.reset(np.random.random(reservoir1.state().shape)) # reservoir1.reset()
             reservoir2.reset(np.random.random(reservoir2.state().shape)) # reservoir2.reset()
 
-        # log over cs
+        # print avg per-signal rmse
+        print(f'CS: {cs}; RMSE1: {np.mean(rmse1)}; RMSE2: {np.mean(rmse2)}')
 
+        # log over cs
         log_Y_pred1.append(ypred1)
         log_Y_pred2.append(ypred2)
         log_R_states1.append(rstates1)
@@ -201,49 +217,52 @@ r2_nnodes=500
 
 
 if __name__ == "__main__":
-    runs = 8
+    runs = 1
 
     # create a multiprocessing pool
     with mp.Pool() as pool:      
         results = pool.map(run_models, range(runs))
 
-    # compile results
-    R_states1 = []
-    R_states2 = []
-    Y_pred1 = []
-    Y_pred2 = []
+        print("stop")
 
-    for i in range(runs):
-        R_states1.append(results[i][0])
-        R_states2.append(results[i][1])
-        Y_pred1.append(results[i][2])
-        Y_pred2.append(results[i][3])
+#     # compile results
+#     R_states1 = []
+#     R_states2 = []
+#     Y_pred1 = []
+#     Y_pred2 = []
+# 
+#     for i in range(runs):
+#         R_states1.append(results[i][0])
+#         R_states2.append(results[i][1])
+#         Y_pred1.append(results[i][2])
+#         Y_pred2.append(results[i][3])
+# 
+#     # store data
+#     R_states1 = [series for run in R_states1 for series in run]
+#     R_states2 = [series for run in R_states2 for series in run]
+#     Y_pred1 = [series for run in Y_pred1 for series in run]
+#     Y_pred2 = [series for run in Y_pred2 for series in run]
+# 
+#     Y1 = pd.DataFrame(np.vstack(Y_pred1))
+#     Y2 = pd.DataFrame(np.vstack(Y_pred2))
+#     R1 = pd.DataFrame(np.vstack(R_states1))
+#     R2 = pd.DataFrame(np.vstack(R_states2))
+# 
+#     Y1.to_csv(f'data/v2_traincomp_batch5/Y1_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
+#     Y2.to_csv(f'data/v2_traincomp_batch5/Y2_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
+#     R1.to_csv(f'data/v2_traincomp_batch5/R1_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
+#     R2.to_csv(f'data/v2_traincomp_batch5/R2_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
+# 
+#     targets = np.tile(np.concatenate(Y_train), (runs*11,1)) # Y_test
+# 
+#     meta_data = {
+#         'coupling': np.concatenate(np.tile(results[0][4], (runs,1))),
+#         'signal_idx': np.tile(np.concatenate([np.full(signal.shape[0], i+1) for i, signal in enumerate(X_train)]), runs*11), # X_test
+#         'run_idx': np.repeat(range(runs), len(results[0][4])),
+#         'target_n1': targets[:,0],
+#         'target_n2': targets[:,1],
+#     }
+# 
+#     meta_data = pd.DataFrame(meta_data)
+#     meta_data.to_csv(f'data/v2_traincomp_batch5/meta_data.csv', index=False)
 
-    # store data
-    R_states1 = [series for run in R_states1 for series in run]
-    R_states2 = [series for run in R_states2 for series in run]
-    Y_pred1 = [series for run in Y_pred1 for series in run]
-    Y_pred2 = [series for run in Y_pred2 for series in run]
-
-    Y1 = pd.DataFrame(np.vstack(Y_pred1))
-    Y2 = pd.DataFrame(np.vstack(Y_pred2))
-    R1 = pd.DataFrame(np.vstack(R_states1))
-    R2 = pd.DataFrame(np.vstack(R_states2))
-
-    Y1.to_csv(f'data/v2_s23_randreset_batch5/Y1_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
-    Y2.to_csv(f'data/v2_s23_randreset_batch5/Y2_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
-    R1.to_csv(f'data/v2_s23_randreset_batch5/R1_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
-    R2.to_csv(f'data/v2_s23_randreset_batch5/R2_ns={ns}_r1={r1_nnodes}_r2={r2_nnodes}.csv', index=False)
-
-    targets = np.tile(np.concatenate(Y_test), (runs*11,1))
-
-    meta_data = {
-        'coupling': np.concatenate(np.tile(results[0][4], (runs,1))),
-        'signal_idx': np.tile(np.concatenate([np.full(signal.shape[0], i+1) for i, signal in enumerate(X_test)]), runs*11),
-        'run_idx': np.repeat(range(runs), len(results[0][4])),
-        'target_n1': targets[:,0],
-        'target_n2': targets[:,1],
-    }
-
-    meta_data = pd.DataFrame(meta_data)
-    meta_data.to_csv(f'data/v2_s23_randreset_batch5/meta_data.csv', index=False)

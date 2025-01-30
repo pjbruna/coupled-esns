@@ -27,11 +27,11 @@ meta_data <- data.frame(
   target_n2 = numeric())
 
 for(i in c(0:4)){
-  y1 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y1_ns=0.0_r1=100_r2=100.csv")) %>%
+  y1 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y1_ns=0.0_r1=500_r2=500.csv")) %>%
     setNames(c("n1", "n2")) %>%
     mutate(model = "1")
   
-  y2 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y2_ns=0.0_r1=100_r2=100.csv")) %>%
+  y2 <- read.csv(paste0("data/v2_s23_randreset_batch", i+1, "/Y2_ns=0.0_r1=500_r2=500.csv")) %>%
     setNames(c("n1", "n2")) %>%
     mutate(model = "2")
   
@@ -66,7 +66,7 @@ if(mean(data$n1 == data$n2)==0){
            target = which.max(c(target_n1, target_n2)),
            correct = ifelse(response==target, 1, 0))
   
-  write.csv(performance_data, file="data/v2_s23_randreset_performance.csv")
+  write.csv(performance_data, file="data/v2_s23_randreset_500_performance.csv")
 } else {
   print("Error: equivalent responses")
 }

@@ -15,7 +15,7 @@ library(viridis)
 ```
 
 ```{r}
-performance_data <- read.csv("data/v2_s23_randreset_performance.csv") %>%
+performance_data <- read.csv("data/v2_s23_randreset_500_performance.csv") %>%
   filter(timestep!=1)
 ```
 
