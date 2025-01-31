@@ -105,10 +105,10 @@ def run_models(index):
 
         # Performance
 
-        persig_rmse1 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, Y_pred1)]
-        persig_rmse2 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, Y_pred2)]
+        # persig_rmse1 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, Y_pred1)]
+        # persig_rmse2 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, Y_pred2)]
 
-        print(f'CS: {cs}; RMSE1: {np.mean(persig_rmse1)}; RMSE2: {np.mean(persig_rmse2)}')
+        # print(f'CS: {cs}; RMSE1: {np.mean(persig_rmse1)}; RMSE2: {np.mean(persig_rmse2)}')
 
         R1_states.append(R_states1)
         R2_states.append(R_states2)
@@ -131,7 +131,7 @@ X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 # Run in parallel
 
 if __name__ == "__main__":
-    runs = 8
+    runs = 5
 
     # create a multiprocessing pool
     with mp.Pool() as pool:      
@@ -160,10 +160,10 @@ if __name__ == "__main__":
         Y1_df = pd.DataFrame(np.vstack(Y1))
         Y2_df = pd.DataFrame(np.vstack(Y2))
 
-        R1_df.to_csv(f'data/a_new_hope/R1.csv', index=False)
-        R2_df.to_csv(f'data/a_new_hope/R2.csv', index=False)
-        Y1_df.to_csv(f'data/a_new_hope/Y1.csv', index=False)
-        Y2_df.to_csv(f'data/a_new_hope/Y2.csv', index=False)
+        R1_df.to_csv(f'data/a_new_hope_batch5/R1.csv', index=False)
+        R2_df.to_csv(f'data/a_new_hope_batch5/R2.csv', index=False)
+        Y1_df.to_csv(f'data/a_new_hope_batch5/Y1.csv', index=False)
+        Y2_df.to_csv(f'data/a_new_hope_batch5/Y2.csv', index=False)
 
         targets = np.tile(np.concatenate(Y_test), (runs*11,1))
 
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         }
 
         meta_data = pd.DataFrame(meta_data)
-        meta_data.to_csv(f'data/a_new_hope/meta_data.csv', index=False)
+        meta_data.to_csv(f'data/a_new_hope_batch5/meta_data.csv', index=False)
 
 
 
