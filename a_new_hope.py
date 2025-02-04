@@ -49,6 +49,7 @@ def run_models(index):
     readout1.fit(train_states1, train_targets)
     readout2.fit(train_states2, train_targets)
 
+
     # Test
 
     coupling = []
@@ -66,6 +67,9 @@ def run_models(index):
 
         coupling.append(np.array([cs] * len(np.vstack(X_test))))
 
+        mask1 = np.array([1,1,1,1,1,1,1,1,1,1,1,1]) # np.array([1,1,1,1,1,1,0,0,0,0,0,0])
+        mask2 = np.array([1,1,1,1,1,1,1,1,1,1,1,1]) # np.array([0,0,0,0,0,0,1,1,1,1,1,1])  
+
         for x in X_test:
             r1 = np.array([np.zeros(reservoir1.output_dim)] * len(x))
             r2 = np.array([np.zeros(reservoir2.output_dim)] * len(x))
@@ -74,11 +78,11 @@ def run_models(index):
 
             for t in range(len(x)):
                 if t==0:
-                    input_fb1 = np.concatenate((x[t], np.array(np.zeros(readout1.output_dim))), axis=None)
-                    input_fb2 = input_fb1
+                    input_fb1 = np.concatenate(((x[t] + (mask1 * (np.random.randn(len(x[t])) * n))), np.array(np.zeros(readout1.output_dim))), axis=None)
+                    input_fb2 = np.concatenate(((x[t] + (mask2 * (np.random.randn(len(x[t])) * n))), np.array(np.zeros(readout2.output_dim))), axis=None)
                 else:
-                    input_fb1 = np.concatenate(((x[t]), np.average([readout1.state(), readout2.state()], axis=0, weights=[(1-cs), cs])), axis=None)
-                    input_fb2 = np.concatenate(((x[t]), np.average([readout1.state(), readout2.state()], axis=0, weights=[cs, (1-cs)])), axis=None)
+                    input_fb1 = np.concatenate(((x[t] + (mask1 * (np.random.randn(len(x[t])) * n))), np.average([readout1.state(), readout2.state()], axis=0, weights=[(1-cs), cs])), axis=None)
+                    input_fb2 = np.concatenate(((x[t] + (mask2 * (np.random.randn(len(x[t])) * n))), np.average([readout1.state(), readout2.state()], axis=0, weights=[cs, (1-cs)])), axis=None)
 
                 rstate1 = reservoir1.run(input_fb1)
                 rstate2 = reservoir2.run(input_fb2)
@@ -128,6 +132,8 @@ def run_models(index):
 
 X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 
+n = 0.3 # noise param
+
 # Run in parallel
 
 if __name__ == "__main__":
@@ -160,16 +166,16 @@ if __name__ == "__main__":
         Y1_df = pd.DataFrame(np.vstack(Y1))
         Y2_df = pd.DataFrame(np.vstack(Y2))
 
-        R1_df.to_csv(f'data/a_new_hope_batch5/R1.csv', index=False)
-        R2_df.to_csv(f'data/a_new_hope_batch5/R2.csv', index=False)
-        Y1_df.to_csv(f'data/a_new_hope_batch5/Y1.csv', index=False)
-        Y2_df.to_csv(f'data/a_new_hope_batch5/Y2.csv', index=False)
+        R1_df.to_csv(f'data/noisy_a_new_hope_batch5/R1_n={n}.csv', index=False)
+        R2_df.to_csv(f'data/noisy_a_new_hope_batch5/R2_n={n}.csv', index=False)
+        Y1_df.to_csv(f'data/noisy_a_new_hope_batch5/Y1_n={n}.csv', index=False)
+        Y2_df.to_csv(f'data/noisy_a_new_hope_batch5/Y2_n={n}.csv', index=False)
 
-        targets = np.tile(np.concatenate(Y_test), (runs*11,1))
+        targets = np.tile(np.concatenate(Y_test), (runs*11,1)) # 11
 
         meta_data = {
             'coupling': np.concatenate(np.tile(results[0][4], (runs,1))),
-            'signal_idx': np.tile(np.concatenate([np.full(signal.shape[0], i+1) for i, signal in enumerate(X_test)]), runs*11),
+            'signal_idx': np.tile(np.concatenate([np.full(signal.shape[0], i+1) for i, signal in enumerate(X_test)]), runs*11), # 11
             'run_idx': np.repeat(range(runs), len(results[0][4])),
             'TX0': targets[:,0],
             'TX1': targets[:,1],
@@ -183,8 +189,5 @@ if __name__ == "__main__":
         }
 
         meta_data = pd.DataFrame(meta_data)
-        meta_data.to_csv(f'data/a_new_hope_batch5/meta_data.csv', index=False)
-
-
-
+        meta_data.to_csv(f'data/noisy_a_new_hope_batch5/meta_data_n={n}.csv', index=False)
 
