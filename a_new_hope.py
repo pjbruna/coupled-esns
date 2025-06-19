@@ -5,20 +5,24 @@ import multiprocessing as mp
 # from sklearn.metrics import accuracy_score
 from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
-from functions import *
 
 rpy.verbosity(0)
 
+## FUNCTIONS ##
 
 # Define model
 
 def run_models(index):
     print(f'Running model: {index}')
-
-    reservoir1 = Reservoir(units=500, sr=0.9, lr=0.1, activation='tanh')
+    
+    np.random.seed(42)
+    reservoir1 = Reservoir(units=nnodes, sr=0.9, lr=0.1, activation='tanh')
+    np.random.seed(42)
     readout1 = Ridge(ridge=1e-6)
 
-    reservoir2 = Reservoir(units=500, sr=0.9, lr=0.1, activation='tanh')
+    np.random.seed(42)
+    reservoir2 = Reservoir(units=nnodes, sr=0.9, lr=0.1, activation='tanh')
+    np.random.seed(42)
     readout2 = Ridge(ridge=1e-6)
 
     # Train
@@ -28,6 +32,8 @@ def run_models(index):
     train_states2 = []
 
     for (x, y) in zip(X_train, Y_train):
+        final = len(x)-1
+
         for t in range(len(x)):
             if t==0:
                 input_fb = np.concatenate((x[t], np.array(np.zeros(len(y[t])))), axis=None)
@@ -37,10 +43,10 @@ def run_models(index):
             rstate1 = reservoir1.run(input_fb)
             rstate2 = reservoir2.run(input_fb)
 
-            train_states1.append(rstate1)
-            train_states2.append(rstate2)
-
-            train_targets.append(y[t, np.newaxis])
+            if t==final:
+                train_states1.append(rstate1)
+                train_states2.append(rstate2)
+                train_targets.append(y[t, np.newaxis])
 
         # reset reservoirs
         reservoir1.reset()
@@ -71,8 +77,8 @@ def run_models(index):
         mask2 = np.array([1,1,1,1,1,1,1,1,1,1,1,1]) # np.array([0,0,0,0,0,0,1,1,1,1,1,1])  
 
         for x in X_test:
-            r1 = np.array([np.zeros(reservoir1.output_dim)] * len(x))
-            r2 = np.array([np.zeros(reservoir2.output_dim)] * len(x))
+            # r1 = np.array([np.zeros(reservoir1.output_dim)] * len(x))
+            # r2 = np.array([np.zeros(reservoir2.output_dim)] * len(x))
             y1 = np.array([np.zeros(readout1.output_dim)] * len(x))
             y2 = np.array([np.zeros(readout2.output_dim)] * len(x))
 
@@ -91,14 +97,14 @@ def run_models(index):
                 ypred2 = readout2.run(rstate2)
 
                 # store
-                r1[t] = rstate1
-                r2[t] = rstate2
+                # r1[t] = rstate1
+                # r2[t] = rstate2
                 y1[t] = ypred1
                 y2[t] = ypred2
 
             # store
-            R_states1.append(r1)
-            R_states2.append(r2)
+            # R_states1.append(r1)
+            # R_states2.append(r2)
             Y_pred1.append(y1)
             Y_pred2.append(y2)
 
@@ -128,48 +134,57 @@ def run_models(index):
     return R1_states, R2_states, Y1_preds, Y2_preds, coupling
 
 
+
+################################################################################
+
+
+
+## RUN ##
+
+# Hyperparams
+
+save_files = True # save data?
+path_name = "test_06_18"
+
+nnodes = 300 # reservoir size
+n = 0.3 # noise
+
 # Import data
 
 X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 
-n = 0.3 # noise param
-
 # Run in parallel
 
 if __name__ == "__main__":
-    runs = 5
+    runs = 1
 
     # create a multiprocessing pool
-    with mp.Pool() as pool:      
+    with mp.Pool(processes=5) as pool:      # mp.cpu_count()-1
         results = pool.map(run_models, range(runs))
+        print("All simulations completed.")
 
         # compile results
-        R1 = []
-        R2 = []
+        # R1 = []
+        # R2 = []
         Y1 = []
         Y2 = []
 
         for i in range(runs):
-            R1.append(results[i][0])
-            R2.append(results[i][1])
+            # R1.append(results[i][0])
+            # R2.append(results[i][1])
             Y1.append(results[i][2])
             Y2.append(results[i][3])
 
         # store data
-        R1 = [series for run in R1 for series in run]
-        R2 = [series for run in R2 for series in run]
+        # R1 = [series for run in R1 for series in run]
+        # R2 = [series for run in R2 for series in run]
         Y1 = [series for run in Y1 for series in run]
         Y2 = [series for run in Y2 for series in run]
 
-        R1_df = pd.DataFrame(np.vstack(R1))
-        R2_df = pd.DataFrame(np.vstack(R2))
+        # R1_df = pd.DataFrame(np.vstack(R1))
+        # R2_df = pd.DataFrame(np.vstack(R2))
         Y1_df = pd.DataFrame(np.vstack(Y1))
         Y2_df = pd.DataFrame(np.vstack(Y2))
-
-        R1_df.to_csv(f'data/noisy_a_new_hope_batch5/R1_n={n}.csv', index=False)
-        R2_df.to_csv(f'data/noisy_a_new_hope_batch5/R2_n={n}.csv', index=False)
-        Y1_df.to_csv(f'data/noisy_a_new_hope_batch5/Y1_n={n}.csv', index=False)
-        Y2_df.to_csv(f'data/noisy_a_new_hope_batch5/Y2_n={n}.csv', index=False)
 
         targets = np.tile(np.concatenate(Y_test), (runs*11,1)) # 11
 
@@ -189,5 +204,15 @@ if __name__ == "__main__":
         }
 
         meta_data = pd.DataFrame(meta_data)
-        meta_data.to_csv(f'data/noisy_a_new_hope_batch5/meta_data_n={n}.csv', index=False)
+
+        # save
+
+        if save_files == True:
+            # R1_df.to_csv(f'data/{path_name}/R1_n={n}.csv', index=False)
+            # R2_df.to_csv(f'data/{path_name}/R2_n={n}.csv', index=False)
+            Y1_df.to_csv(f'data/{path_name}/Y1_n={n}_nnodes={nnodes}.csv', index=False)
+            Y2_df.to_csv(f'data/{path_name}/Y2_n={n}_nnodes={nnodes}.csv', index=False)
+            meta_data.to_csv(f'data/{path_name}/meta_data_n={n}_nnodes={nnodes}.csv', index=False)
+        
+            print("Data saved.")
 
