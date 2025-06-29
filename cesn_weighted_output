@@ -1,0 +1,23 @@
+import numpy as np
+import reservoirpy as rpy
+from reservoirpy.nodes import Reservoir, Ridge
+from reservoirpy.datasets import japanese_vowels
+from cesn_model import *
+
+rpy.verbosity(0)
+
+runs = 5
+
+X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
+
+for c in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+    acc = []
+
+    for r in range(runs):
+        model = CesnModel(nnodes=300, coupling_strength=c)
+        model.train(input=X_train, target=Y_train)
+        results = model.test(input=X_test, target=Y_test, noise=0.3, do_print=False, save_reservoir=False)
+
+        acc.append(model.weighted_accuracy(pred1=results[0], pred2=results[1], target=Y_test, do_print=False))
+
+    print(f'CS: {c}; N: {runs}; Acc: {np.mean(acc)}')

@@ -1,27 +1,74 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
 from cesn_model import *
+from functions import *
 
 rpy.verbosity(0)
 
-runs = 5
+# Hyperparams
+
+runs = 25 # number of runs
+coupling_num = 11 # number of coupling strengths to test
+
+train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
+
+r1_size = 500 # reservoir 1 size
+r2_size = int(r1_size / 1) # reservoir 2 size
+
+
+# Curate training data
 
 X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 
-for c in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+sampled_indices1 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False)
+X_train1 = [X_train[i] for i in sampled_indices1]
+Y_train1 = [Y_train[i] for i in sampled_indices1]
+
+if train_sample==0.5:
+    sampled_indices2 = np.setdiff1d(np.arange(len(X_train)), sampled_indices1) # sample (non-overlapping)
+    np.random.shuffle(sampled_indices2)
+    X_train2 = [X_train[i] for i in sampled_indices2]
+    Y_train2 = [Y_train[i] for i in sampled_indices2]
+else:
+    sampled_indices2 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False) # sample (random)
+    X_train2 = [X_train[i] for i in sampled_indices2]
+    Y_train2 = [Y_train[i] for i in sampled_indices2]
+
+
+# Run model
+
+store_couplings = []
+store_accuracies = []
+
+for c in np.linspace(0.0, 1.0, num=coupling_num):
     acc = []
 
     for r in range(runs):
-        model = CesnModel(nnodes=300, coupling_strength=c)
-        model.train(input=X_train, target=Y_train)
-        results = model.test(input=X_test, target=Y_test, noise=0.3, print=False, save_reservoir=False)
+        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=int(c))
 
-        acc.append(model.accuracy(pred1=results[0], pred2=results[1], target=Y_test, print=False))
+        model.train_r1(input=X_train1, target=Y_train1)
+        model.train_r2(input=X_train2, target=Y_train2)
 
-    print(f'CS: {c}; N: {runs}; Acc: {np.mean(acc)}')
+        results = model.test(input=X_test, target=Y_test, noise=0, do_print=False, save_reservoir=False)
 
+        acc.append(model.accuracy(pred1=results[0], pred2=results[1], target=Y_test, do_print=False))
+
+    store_couplings.append(c)
+    store_accuracies.append(acc)
+    
+    print(f'N: {runs}; CS: {c}; R1: {r1_size}; R2: {r2_size};  Acc: {np.mean(acc)}')
+
+
+# Plot
+
+plot_coupling_strengths(x=store_couplings, y=store_accuracies, title=f'N: {runs}', do_print=False, save=True)
+
+
+
+#############################
 
 
 
