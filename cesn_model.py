@@ -186,8 +186,11 @@ class CesnModel:
                     null1 = generate_null_feedback(bits=self.readout1.output_dim, normalize=norm)
                     null2 = generate_null_feedback(bits=self.readout2.output_dim, normalize=norm)
 
-                    input_fb1 = np.concatenate(((x[t] + (np.random.randn(len(x[t])) * noise_scale)), null1), axis=None)
-                    input_fb2 = np.concatenate(((x[t] + (np.random.randn(len(x[t])) * noise_scale)), null2), axis=None)
+                    null1 = null1.reshape(self.readout1.state().shape)
+                    null2 = null2.reshape(self.readout2.state().shape)
+
+                    input_fb1 = np.concatenate(((x[t] + (np.random.randn(len(x[t])) * noise_scale)), np.average([self.readout1.state(), null2], axis=0, weights=[(1-self.coupling_strength), self.coupling_strength])), axis=None)
+                    input_fb2 = np.concatenate(((x[t] + (np.random.randn(len(x[t])) * noise_scale)), np.average([null1, self.readout2.state()], axis=0, weights=[self.coupling_strength, (1-self.coupling_strength)])), axis=None)
 
                 rstate1 = self.reservoir1.run(input_fb1)
                 rstate2 = self.reservoir2.run(input_fb2)

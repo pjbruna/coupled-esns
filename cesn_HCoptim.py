@@ -2,6 +2,8 @@ import numpy as np
 import random
 import math
 import sys
+import time
+from datetime import timedelta
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
@@ -9,13 +11,23 @@ from reservoirpy.datasets import japanese_vowels
 from cesn_model import *
 from functions import *
 
+
 rpy.verbosity(0)
+
+seed = 42
+random.seed(seed)
 
 
 # Redirect stdout and stderr to a file
-with open("anneal_log.txt", "w", buffering=1) as f:
+with open("anneal_log_CONT.txt", "w", buffering=1) as f:
     sys.stdout = f
     sys.stderr = f
+
+    # Print seed
+    print(f"Random seed: {seed}")
+
+    # Log start time
+    start_time = time.time()
 
     # Define model
 
@@ -84,8 +96,8 @@ with open("anneal_log.txt", "w", buffering=1) as f:
     TRAIN_SIZE_MIN, TRAIN_SIZE_MAX = 0.5, 1.0
 
     # Initial solution
-    nnode = random.randint(NNODE_MIN, NNODE_MAX)
-    train_size = random.uniform(TRAIN_SIZE_MIN, TRAIN_SIZE_MAX)
+    nnode = 628 # random.randint(NNODE_MIN, NNODE_MAX)
+    train_size = 0.586 # random.uniform(TRAIN_SIZE_MIN, TRAIN_SIZE_MAX)
     best_score = run_model(runs=RUN_NUM, coupling_num=C_NUM, r1_size=nnode, r2_size=nnode, train_sample=train_size)
 
     # Hill climbing loop
@@ -149,3 +161,9 @@ with open("anneal_log.txt", "w", buffering=1) as f:
 
     print(f"\nBest found: score={best_score:.4f}, nnode={nnode}, train_size={train_size:.3f}")
 
+
+    # Log end time
+    end_time = time.time()
+    elapsed = end_time - start_time
+    formatted = str(timedelta(seconds=elapsed))
+    print(f"Execution time: {formatted}")
