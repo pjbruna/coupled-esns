@@ -10,13 +10,14 @@ rpy.verbosity(0)
 
 # Hyperparams
 
-runs = 25 # number of runs
-coupling_num = 11 # number of coupling strengths to test
+runs = 10 # number of runs
+coupling_num = 3 # number of coupling strengths to test
+seed_num = None # seed reservoirs?
 
 train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
 r1_size = 500 # reservoir 1 size
-r2_size = int(r1_size / 1) # reservoir 2 size
+r2_size = r1_size # int(r1_size / 2) # reservoir 2 size
 
 
 # Curate training data
@@ -41,30 +42,48 @@ else:
 # Run model
 
 store_couplings = []
-store_accuracies = []
+store_accuracies_joint = []
+store_accuracies_y1 = []
+store_accuracies_y2 = []
 
 for c in np.linspace(0.0, 1.0, num=coupling_num):
-    acc = []
+    c = round(c, 1)
+    acc_joint = []
+    acc_y1 = []
+    acc_y2 = []
 
     for r in range(runs):
-        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=int(c))
+        print(f'Simulation #{r}')
+        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c, is_seed=seed_num)
 
         model.train_r1(input=X_train1, target=Y_train1)
         model.train_r2(input=X_train2, target=Y_train2)
 
-        results = model.test(input=X_test, target=Y_test, noise=0, do_print=False, save_reservoir=False)
+        results = model.test(input=X_test, target=Y_test, noise_scale=0, do_print=False, save_reservoir=False)
 
-        acc.append(model.accuracy(pred1=results[0], pred2=results[1], target=Y_test, do_print=False))
+        joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test, do_print=False)
+
+        acc_joint.append(joint)
+        acc_y1.append(y1)
+        acc_y2.append(y2)
 
     store_couplings.append(c)
-    store_accuracies.append(acc)
+    store_accuracies_joint.append(acc_joint)
+    store_accuracies_y1.append(acc_y1)
+    store_accuracies_y2.append(acc_y2)
     
-    print(f'N: {runs}; CS: {c}; R1: {r1_size}; R2: {r2_size};  Acc: {np.mean(acc)}')
+    print(f'N: {runs}; CS: {c}; R1: {r1_size}; R2: {r2_size};  Acc: {np.mean(acc_joint)}')
 
 
 # Plot
 
-plot_coupling_strengths(x=store_couplings, y=store_accuracies, title=f'N: {runs}', do_print=False, save=True)
+if seed_num==None:
+    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+else:
+    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs_seed/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs_seed/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+
 
 
 
