@@ -1,6 +1,8 @@
 import numpy as np
 import random
 import sys
+import time
+from datetime import timedelta
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
@@ -8,13 +10,23 @@ from reservoirpy.datasets import japanese_vowels
 from cesn_model import *
 from functions import *
 
+
 rpy.verbosity(0)
+
+seed = 42
+random.seed(seed)
 
 
 # Redirect stdout and stderr to a file
-with open("genetic_log.txt", "w", buffering=1) as f:
+with open("INVERT_genetic_log.txt", "w", buffering=1) as f:
     sys.stdout = f
     sys.stderr = f
+
+    # Print seed
+    print(f"Random seed: {seed}")
+
+    # Log start time
+    start_time = time.time()
 
     # Define model
 
@@ -59,10 +71,12 @@ with open("genetic_log.txt", "w", buffering=1) as f:
 
             # print(f'N: {runs}; CS: {c}; R1: {r1_size}; R2: {r2_size};  Acc: {np.mean(acc)}')
 
-        syn_gain = store_accuracies[1] - store_accuracies[0]
-        # syn_gain = np.trapz(store_accuracies - store_accuracies[0], dx=coupling_num)
+        gain = store_accuracies[0] - store_accuracies[1] # maximize woc over coupling
+        # gain = store_accuracies[1] - store_accuracies[0] # maximize coupling over woc
 
-        return syn_gain
+        # gain = np.trapz(store_accuracies - store_accuracies[0], dx=coupling_num)
+
+        return gain
 
 
 
@@ -115,7 +129,7 @@ with open("genetic_log.txt", "w", buffering=1) as f:
 
     # Define bounds
 
-    NNODE_MIN, NNODE_MAX = 100, 1000
+    NNODE_MIN, NNODE_MAX = 50, 1000 # 100, 1000
     TRAIN_SIZE_MIN, TRAIN_SIZE_MAX = 0.5, 1.0
 
     # Parameters
@@ -143,3 +157,10 @@ with open("genetic_log.txt", "w", buffering=1) as f:
         best_score = max(scores)
         best_individual = population[scores.index(best_score)]
         print(f"Gen {gen}: Best Score = {best_score:.4f}, Params = {best_individual}")
+
+
+    # Log end time
+    end_time = time.time()
+    elapsed = end_time - start_time
+    formatted = str(timedelta(seconds=elapsed))
+    print(f"Execution time: {formatted}")
