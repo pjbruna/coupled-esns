@@ -11,13 +11,13 @@ rpy.verbosity(0)
 # Hyperparams
 
 runs = 10 # number of runs
-coupling_num = 5 # number of coupling strengths to test
+coupling_num = 11 # number of coupling strengths to test
 seed_num = None # seed reservoirs?
 
-train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
+train_sample = 0.794 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
-r1_size = 500 # reservoir 1 size
-r2_size = 500 # int(r1_size / 2) # reservoir 2 size
+r1_size = 153 # reservoir 1 size
+r2_size = r1_size # int(r1_size / 2) # reservoir 2 size
 
 
 # Curate training data
