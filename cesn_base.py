@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
@@ -8,15 +9,18 @@ from functions import *
 
 rpy.verbosity(0)
 
+seed = 42
+np.random.seed(seed)
+
 # Hyperparams
 
-runs = 10 # number of runs
+runs = 1 # number of runs
 coupling_num = 11 # number of coupling strengths to test
-seed_num = None # seed reservoirs?
+reservoir_seeds = None # seed reservoirs?
 
-train_sample = 0.794 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
+train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
-r1_size = 153 # reservoir 1 size
+r1_size = 500 # reservoir 1 size
 r2_size = r1_size # int(r1_size / 2) # reservoir 2 size
 
 
@@ -54,7 +58,7 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
 
     for r in range(runs):
         print(f'Simulation #{r}')
-        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c, is_seed=seed_num)
+        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c, is_seed=reservoir_seeds)
 
         model.train_r1(input=X_train1, target=Y_train1)
         model.train_r2(input=X_train2, target=Y_train2)
@@ -77,7 +81,7 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
 
 # Plot
 
-if seed_num==None:
+if reservoir_seeds==None:
     # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
     plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
 else:

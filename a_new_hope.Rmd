@@ -85,7 +85,7 @@ library(matrixStats)
 # load data
 
 ```{r}
-performance_data <- read.csv("data/test_06_18/performance_n=0.3_nnodes=300.csv") # noisy_a_new_hope_performance.csv
+performance_data <- read.csv("data/noisy_a_new_hope_performance.csv") # noisy_a_new_hope_performance.csv
 ```
 
 ```{r}
@@ -182,6 +182,99 @@ ggplot(wjoint, aes(x=as.numeric(weight), y=m)) +
 
 # ggsave(filename = "figures/wavg_joint.png", height=7, width=10)
 ```
+
+```{r}
+tempdf1 <- joint_esn_perf %>%
+  rename("value" = coupling) %>%
+  mutate(condition = "Coupled feedback")
+
+tempdf2 <- wjoint %>%
+  rename("value" = weight) %>%
+  mutate(condition = "Uncoupled with weighted readouts")
+
+plot_combined <- rbind(tempdf1, tempdf2)
+
+ggplot(plot_combined, aes(x=as.numeric(value), y=m, color=condition)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.1, linetype = 0) +
+  geom_line() +
+  labs(x="Strength", y="Pcorrect", color="Condition") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+```{r}
+# benefit of averaging out noise in the readouts vs effect coupled feedback on reservoir dynamics
+
+wjoint <- data.frame(X0 = numeric(),
+                     X1 = numeric(),
+                     X2 = numeric(),
+                     X3 = numeric(),
+                     X4 = numeric(),
+                     X5 = numeric(),
+                     X6 = numeric(),
+                     X7 = numeric(),
+                     X8 = numeric(),
+                     weight = numeric(),
+                     coupling = numeric())
+
+for(c in c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1)){
+  for(w in c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1)){
+    y1 <- performance_data %>%
+      filter(model=="1", coupling==c)
+    
+    y2 <- performance_data %>%
+      filter(model=="2", coupling==c)
+    
+    df <- data.frame(X0 = rowWeightedMeans(cbind(y1$X0, y2$X0), w=c(1-w, w)),
+                     X1 = rowWeightedMeans(cbind(y1$X1, y2$X1), w=c(1-w, w)),
+                     X2 = rowWeightedMeans(cbind(y1$X2, y2$X2), w=c(1-w, w)),
+                     X3 = rowWeightedMeans(cbind(y1$X3, y2$X3), w=c(1-w, w)),
+                     X4 = rowWeightedMeans(cbind(y1$X4, y2$X4), w=c(1-w, w)),
+                     X5 = rowWeightedMeans(cbind(y1$X5, y2$X5), w=c(1-w, w)),
+                     X6 = rowWeightedMeans(cbind(y1$X6, y2$X6), w=c(1-w, w)),
+                     X7 = rowWeightedMeans(cbind(y1$X7, y2$X7), w=c(1-w, w)),
+                     X8 = rowWeightedMeans(cbind(y1$X8, y2$X8), w=c(1-w, w)),
+                     weight = w,
+                     coupling = c)
+    
+    wjoint <- rbind(wjoint, df)
+  }
+}
+
+meta_data <- performance_data %>%
+  filter(model=="joint") %>%
+  ungroup() %>%
+  select(run_idx, signal_idx, timestep, target)
+
+test <- cbind(wjoint, meta_data) %>%
+  rowwise() %>%
+  mutate(response = which.max(c(X0, X1, X2, X3, X4, X5, X6, X7, X8)),
+         correct = ifelse(response==target, 1, 0)) %>%
+  group_by(weight) %>%
+  summarise(m = mean(correct), se = sd(correct)/sqrt(n()))
+
+ggplot(wjoint, aes(x=as.numeric(weight), y=m)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.1, linetype = 0) +
+  geom_line() +
+  labs(title="Joint decision weight (autofeedback)", x="Weight", y="Accuracy (%)") +
+  theme_bw()
+
+# ggsave(filename = "figures/wavg_joint.png", height=7, width=10)
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 # acc over time
 
