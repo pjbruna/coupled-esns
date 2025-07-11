@@ -20,8 +20,14 @@ class CesnModel:
     def __init__(self, r1_nnodes=None, r2_nnodes=None, coupling_strength=None, is_seed=None):
 
         self.coupling_strength = coupling_strength
-        self.reservoir1 = Reservoir(units=r1_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[0])
-        self.reservoir2 = Reservoir(units=r2_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[1])
+
+        if is_seed==None:
+            self.reservoir1 = Reservoir(units=r1_nnodes, sr=0.9, lr=0.1, activation='tanh')
+            self.reservoir2 = Reservoir(units=r2_nnodes, sr=0.9, lr=0.1, activation='tanh')
+        else:
+            self.reservoir1 = Reservoir(units=r1_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[0])
+            self.reservoir2 = Reservoir(units=r2_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[1])
+            
         self.readout1 = Ridge(ridge=1e-6)
         self.readout2 = Ridge(ridge=1e-6)
 

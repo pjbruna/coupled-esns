@@ -1,5 +1,7 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
@@ -84,8 +86,8 @@ res_size = []
 train_size = []
 measure = []
 
-for nnode in [250, 500, 750]: 
-    for sample in [0.5, 0.75, 1.0]:
+for nnode in np.linspace(100, 1000, num=19, dtype=int): 
+    for sample in np.round(np.linspace(0.5, 1.0, num=11), 2):
         print(f'Running: nnode={nnode}, sample={sample}')
         result = run_model(runs=run_num, noise=noise_num, r1_size=nnode, r2_size=nnode, train_sample=sample)
 
@@ -93,36 +95,13 @@ for nnode in [250, 500, 750]:
         train_size.append(sample)
         measure.append(result)
 
-# Plot heat map
+# Store data
 
-res_size_unique = sorted(set(res_size))
-train_size_unique = sorted(set(train_size))
+df = pd.DataFrame({
+    'res_size': res_size,
+    'train_size': train_size,
+    'measure': measure
+})
 
-# Create a 2D grid for the heatmap
-heatmap = np.full((len(train_size_unique), len(res_size_unique)), np.nan)
-
-# Fill the grid with measure values
-for r, t, m in zip(res_size, train_size, measure):
-    i = train_size_unique.index(t)
-    j = res_size_unique.index(r)
-    heatmap[i, j] = m
-
-# Plot the heatmap
-plt.figure(figsize=(8, 6))
-im = plt.imshow(heatmap, cmap='viridis', origin='lower', aspect='auto')
-
-# Set axis labels and ticks
-plt.xticks(ticks=np.arange(len(res_size_unique)), labels=res_size_unique)
-plt.yticks(ticks=np.arange(len(train_size_unique)), labels=train_size_unique)
-plt.xlabel('Reservoir Size (nodes)')
-plt.ylabel('Training Size (%)')
-# plt.title(f'N={run_num}')
-
-# Add colorbar
-cbar = plt.colorbar(im)
-cbar.set_label('Gain')
-
-plt.tight_layout()
-plt.savefig(f'plt_figs/diff_heatmap_N={run_num}_noise={noise_num}.png')
-
-
+# Save to CSV
+df.to_csv(f'data/fitness_landscape_N={run_num}_noise={noise_num}.csv', index=False)
