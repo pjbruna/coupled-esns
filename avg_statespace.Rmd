@@ -15,44 +15,44 @@ library(infotheo)
 ## Avg. cumulative explained var
 
 ```{r}
-cum_var_df <- data.frame(
-  pc = numeric(),
-  cumvar = numeric(),
-  coupling = numeric(),
-  sim = numeric()
-)
-
-for(run in c(0:9)){
-  for(strength in c("0.0", "0.5", "1.0")){
-    r1 <- read.csv(paste0("data/savedata/r1_cs=", strength, "_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-    r2 <- read.csv(paste0("data/savedata/r2_cs=", strength, "_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-    
-    r_comb <- cbind(r1, r2)
-    
-    scaled_r_comb <- scale(r_comb)
-    pca_result <- prcomp(scaled_r_comb, center = TRUE, scale. = TRUE)
-    
-    var_explained <- pca_result$sdev^2
-    prop_var_explained <- var_explained / sum(var_explained)
-    
-    cum_var_explained <- cumsum(prop_var_explained)
-    
-    temp_df <- data.frame(
-      pc = 1:length(cum_var_explained),
-      cumvar = cum_var_explained,
-      coupling = strength,
-      sim = run
-    )
-    
-    cum_var_df <- rbind(cum_var_df, temp_df)
-  }
-}
-
-cum_var_df <- cum_var_df %>%
-  group_by(pc, coupling) %>%
-  summarise(avg_cumvar = mean(cumvar), se_cumvar = sd(cumvar)/sqrt(n()))
-
-write.csv(cum_var_df, "data/savedata/cumulative_explained_var_r1=500_r2=500_sample=0.5.csv", row.names = FALSE)
+# cum_var_df <- data.frame(
+#   pc = numeric(),
+#   cumvar = numeric(),
+#   coupling = numeric(),
+#   sim = numeric()
+# )
+# 
+# for(run in c(0:9)){
+#   for(strength in c("0.0", "0.5", "1.0")){
+#     r1 <- read.csv(paste0("data/savedata/r1_cs=", strength, "_r1=500_r2=500_sample=0.5_sim=", run, # ".csv"))
+#     r2 <- read.csv(paste0("data/savedata/r2_cs=", strength, "_r1=500_r2=500_sample=0.5_sim=", run, # ".csv"))
+#     
+#     r_comb <- cbind(r1, r2)
+#     
+#     scaled_r_comb <- scale(r_comb)
+#     pca_result <- prcomp(scaled_r_comb, center = TRUE, scale. = TRUE)
+#     
+#     var_explained <- pca_result$sdev^2
+#     prop_var_explained <- var_explained / sum(var_explained)
+#     
+#     cum_var_explained <- cumsum(prop_var_explained)
+#     
+#     temp_df <- data.frame(
+#       pc = 1:length(cum_var_explained),
+#       cumvar = cum_var_explained,
+#       coupling = strength,
+#       sim = run
+#     )
+#     
+#     cum_var_df <- rbind(cum_var_df, temp_df)
+#   }
+# }
+# 
+# cum_var_df <- cum_var_df %>%
+#   group_by(pc, coupling) %>%
+#   summarise(avg_cumvar = mean(cumvar), se_cumvar = sd(cumvar)/sqrt(n()))
+# 
+# # write.csv(cum_var_df, "data/savedata/avg_PCA_variance.csv", row.names = FALSE)
 ```
 
 ## Avg. PCA correlations
@@ -193,153 +193,153 @@ num_pcs <- 50
 ```{r}
 # normalized MIs for uncoupled reservoirs
 
-mi_df <- data.frame(
-  pc = numeric(),
-  nmi = numeric(),
-  sim = numeric()
-)
-
-for(run in c(0:9)){
-  r1 <- read.csv(paste0("data/savedata/r1_cs=0.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  r2 <- read.csv(paste0("data/savedata/r2_cs=0.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  
-  scaled_r1 <- scale(r1)
-  scaled_r2 <- scale(r2)
-  
-  pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
-  pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
-  
-  pcs_r1 <- pca_r1$x[, 1:num_pcs]
-  pcs_r2 <- pca_r2$x[, 1:num_pcs]
-  
-  for(i in 1:num_pcs) {
-    r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
-    r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
-  
-    h_r1 <- entropy::entropy(table(r1_disc))
-    h_r2 <- entropy::entropy(table(r2_disc))
-    mi  <- infotheo::mutinformation(r1_disc, r2_disc)
-  
-    temp_df <- data.frame(
-      pc = i,
-      nmi = mi / sqrt(h_r1 * h_r2),
-      sim = run
-    )
-    
-    mi_df <- rbind(mi_df, temp_df)
-  }
-}
-
-mi_df <- mi_df %>%
-  group_by(pc) %>%
-  summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
-
-write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_uncoupled.csv", row.names = FALSE)
+# mi_df <- data.frame(
+#   pc = numeric(),
+#   nmi = numeric(),
+#   sim = numeric()
+# )
+# 
+# for(run in c(0:9)){
+#   r1 <- read.csv(paste0("data/savedata/r1_cs=0.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   r2 <- read.csv(paste0("data/savedata/r2_cs=0.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   
+#   scaled_r1 <- scale(r1)
+#   scaled_r2 <- scale(r2)
+#   
+#   pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
+#   pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
+#   
+#   pcs_r1 <- pca_r1$x[, 1:num_pcs]
+#   pcs_r2 <- pca_r2$x[, 1:num_pcs]
+#   
+#   for(i in 1:num_pcs) {
+#     r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
+#     r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
+#   
+#     h_r1 <- entropy::entropy(table(r1_disc))
+#     h_r2 <- entropy::entropy(table(r2_disc))
+#     mi  <- infotheo::mutinformation(r1_disc, r2_disc)
+#   
+#     temp_df <- data.frame(
+#       pc = i,
+#       nmi = mi / sqrt(h_r1 * h_r2),
+#       sim = run
+#     )
+#     
+#     mi_df <- rbind(mi_df, temp_df)
+#   }
+# }
+# 
+# mi_df <- mi_df %>%
+#   group_by(pc) %>%
+#   summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
+# 
+# write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_uncoupled.csv", row.names = FALSE)
 ```
 
 ```{r}
-# normalized MIs for loosely coupled reservoirs
-
-mi_df <- data.frame(
-  pc = numeric(),
-  nmi = numeric(),
-  sim = numeric()
-)
-
-for(run in c(0:9)){
-  r1 <- read.csv(paste0("data/savedata/r1_cs=0.5_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  r2 <- read.csv(paste0("data/savedata/r2_cs=0.5_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  
-  scaled_r1 <- scale(r1)
-  scaled_r2 <- scale(r2)
-  
-  pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
-  pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
-  
-  pcs_r1 <- pca_r1$x[, 1:num_pcs]
-  pcs_r2 <- pca_r2$x[, 1:num_pcs]
-  
-  for(i in 1:num_pcs) {
-    r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
-    r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
-  
-    h_r1 <- entropy::entropy(table(r1_disc))
-    h_r2 <- entropy::entropy(table(r2_disc))
-    mi  <- infotheo::mutinformation(r1_disc, r2_disc)
-  
-    temp_df <- data.frame(
-      pc = i,
-      nmi = mi / sqrt(h_r1 * h_r2),
-      sim = run
-    )
-    
-    mi_df <- rbind(mi_df, temp_df)
-  }
-}
-
-mi_df <- mi_df %>%
-  group_by(pc) %>%
-  summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
-
-write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_looselycoupled.csv", row.names = FALSE)
+# # normalized MIs for loosely coupled reservoirs
+# 
+# mi_df <- data.frame(
+#   pc = numeric(),
+#   nmi = numeric(),
+#   sim = numeric()
+# )
+# 
+# for(run in c(0:9)){
+#   r1 <- read.csv(paste0("data/savedata/r1_cs=0.5_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   r2 <- read.csv(paste0("data/savedata/r2_cs=0.5_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   
+#   scaled_r1 <- scale(r1)
+#   scaled_r2 <- scale(r2)
+#   
+#   pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
+#   pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
+#   
+#   pcs_r1 <- pca_r1$x[, 1:num_pcs]
+#   pcs_r2 <- pca_r2$x[, 1:num_pcs]
+#   
+#   for(i in 1:num_pcs) {
+#     r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
+#     r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
+#   
+#     h_r1 <- entropy::entropy(table(r1_disc))
+#     h_r2 <- entropy::entropy(table(r2_disc))
+#     mi  <- infotheo::mutinformation(r1_disc, r2_disc)
+#   
+#     temp_df <- data.frame(
+#       pc = i,
+#       nmi = mi / sqrt(h_r1 * h_r2),
+#       sim = run
+#     )
+#     
+#     mi_df <- rbind(mi_df, temp_df)
+#   }
+# }
+# 
+# mi_df <- mi_df %>%
+#   group_by(pc) %>%
+#   summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
+# 
+# write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_looselycoupled.csv", row.names = FALSE)
 ```
 
 ```{r}
 # normalized MIs for tightly coupled reservoirs
 
-mi_df <- data.frame(
-  pc = numeric(),
-  nmi = numeric(),
-  sim = numeric()
-)
-
-for(run in c(0:9)){
-  r1 <- read.csv(paste0("data/savedata/r1_cs=1.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  r2 <- read.csv(paste0("data/savedata/r2_cs=1.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
-  
-  scaled_r1 <- scale(r1)
-  scaled_r2 <- scale(r2)
-  
-  pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
-  pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
-  
-  pcs_r1 <- pca_r1$x[, 1:num_pcs]
-  pcs_r2 <- pca_r2$x[, 1:num_pcs]
-  
-  for(i in 1:num_pcs) {
-    r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
-    r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
-  
-    h_r1 <- entropy::entropy(table(r1_disc))
-    h_r2 <- entropy::entropy(table(r2_disc))
-    mi  <- infotheo::mutinformation(r1_disc, r2_disc)
-  
-    temp_df <- data.frame(
-      pc = i,
-      nmi = mi / sqrt(h_r1 * h_r2),
-      sim = run
-    )
-    
-    mi_df <- rbind(mi_df, temp_df)
-  }
-}
-
-mi_df <- mi_df %>%
-  group_by(pc) %>%
-  summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
-
-write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_tightlycoupled.csv", row.names = FALSE)
+# mi_df <- data.frame(
+#   pc = numeric(),
+#   nmi = numeric(),
+#   sim = numeric()
+# )
+# 
+# for(run in c(0:9)){
+#   r1 <- read.csv(paste0("data/savedata/r1_cs=1.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   r2 <- read.csv(paste0("data/savedata/r2_cs=1.0_r1=500_r2=500_sample=0.5_sim=", run, ".csv"))
+#   
+#   scaled_r1 <- scale(r1)
+#   scaled_r2 <- scale(r2)
+#   
+#   pca_r1 <- prcomp(scaled_r1, center = TRUE, scale. = TRUE)
+#   pca_r2 <- prcomp(scaled_r2, center = TRUE, scale. = TRUE)
+#   
+#   pcs_r1 <- pca_r1$x[, 1:num_pcs]
+#   pcs_r2 <- pca_r2$x[, 1:num_pcs]
+#   
+#   for(i in 1:num_pcs) {
+#     r1_disc <- infotheo::discretize(pcs_r1[, i], nbins = bins)
+#     r2_disc <- infotheo::discretize(pcs_r2[, i], nbins = bins)
+#   
+#     h_r1 <- entropy::entropy(table(r1_disc))
+#     h_r2 <- entropy::entropy(table(r2_disc))
+#     mi  <- infotheo::mutinformation(r1_disc, r2_disc)
+#   
+#     temp_df <- data.frame(
+#       pc = i,
+#       nmi = mi / sqrt(h_r1 * h_r2),
+#       sim = run
+#     )
+#     
+#     mi_df <- rbind(mi_df, temp_df)
+#   }
+# }
+# 
+# mi_df <- mi_df %>%
+#   group_by(pc) %>%
+#   summarise(avg_nmi = mean(nmi), se_nmi = sd(nmi)/sqrt(n()))
+# 
+# write.csv(mi_df, "data/savedata/avg_PCA_mutualinformation_tightlycoupled.csv", row.names = FALSE)
 ```
 
 
 # Compare cumulative explained variance
 
 ```{r}
-cum_var_df <- read.csv("data/savedata/cumulative_explained_var_r1=500_r2=500_sample=0.5.csv") %>%
+cum_var_df <- read.csv("data/savedata/avg_PCA_variance.csv") %>%
   mutate(coupling = factor(coupling))
 
 ggplot(cum_var_df, aes(x = pc, y = avg_cumvar, color = coupling)) +
-  geom_line(size=1) +
+  geom_line() +
   geom_ribbon(aes(ymin = avg_cumvar - se_cumvar, ymax = avg_cumvar + se_cumvar), alpha = 0.1, linetype = 0) +
   scale_color_viridis_d(direction = -1) +
   xlim(1,100) +
@@ -350,7 +350,7 @@ ggplot(cum_var_df, aes(x = pc, y = avg_cumvar, color = coupling)) +
   ) +
   theme_bw()
 
-ggsave(file = "poster_figs/avg_PCA_cumulative_var.png")
+# ggsave(file = "poster_figs/avg_PCA_cumulative_var.png")
 ```
 
 
