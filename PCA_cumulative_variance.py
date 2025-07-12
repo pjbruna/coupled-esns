@@ -59,7 +59,7 @@ cum_var_df['coupling'] = cum_var_df['coupling'].astype(str).astype('category')
 new_labels = {'0.0': 'Coupling=0.0', '0.5': 'Coupling=0.5', '1.0': 'Coupling=1.0'}
 cum_var_df['coupling'] = cum_var_df['coupling'].cat.rename_categories(new_labels)
 coupling_levels = cum_var_df['coupling'].cat.categories
-manual_colors = ['#2171b5', '#6baed6', '#bdd7e7']
+manual_colors = ['#6baed6', '#2171b5', '#08306b']
 colors = {level: manual_colors[i] for i, level in enumerate(coupling_levels)}
 
 plt.figure(figsize=(10, 6))

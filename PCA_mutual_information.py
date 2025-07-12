@@ -87,7 +87,7 @@ mi_df['coupling'] = pd.Categorical(
 
 # Set up color map
 coupling_levels = mi_df['coupling'].cat.categories
-manual_colors = ['#2171b5', '#6baed6', '#bdd7e7']
+manual_colors = ['#6baed6', '#2171b5', '#08306b']
 colors = {level: manual_colors[i] for i, level in enumerate(coupling_levels)}
 
 plt.figure(figsize=(10, 6))

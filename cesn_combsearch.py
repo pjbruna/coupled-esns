@@ -86,8 +86,8 @@ res_size = []
 train_size = []
 measure = []
 
-for nnode in np.linspace(100, 1000, num=19, dtype=int): 
-    for sample in np.round(np.linspace(0.5, 1.0, num=11), 2):
+for nnode in np.arange(100, 1001, 100): 
+    for sample in np.arange(0.5, 1.01, 0.05):
         print(f'Running: nnode={nnode}, sample={sample}')
         result = run_model(runs=run_num, noise=noise_num, r1_size=nnode, r2_size=nnode, train_sample=sample)
 

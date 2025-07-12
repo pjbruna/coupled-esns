@@ -9,14 +9,14 @@ from functions import *
 
 rpy.verbosity(0)
 
-seed = 42
-np.random.seed(seed)
+# seed = 42
+# np.random.seed(seed)
 
 # Hyperparams
 
-runs = 1 # number of runs
+runs = 10 # number of runs
 coupling_num = 11 # number of coupling strengths to test
-reservoir_seeds = None # seed reservoirs?
+reservoir_seeds = None # [42,24] # seed reservoirs?
 
 train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
@@ -81,13 +81,39 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
 
 # Plot
 
-if reservoir_seeds==None:
-    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-else:
-    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs_seed/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs_seed/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+# if reservoir_seeds==None:
+#     # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+#     plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+# else:
+#     # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs_seed/acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+#     plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs_seed/acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
 
+
+
+x_values = np.array(store_couplings)
+datasets = [np.array(store_accuracies_joint), np.array(store_accuracies_y1), np.array(store_accuracies_y2)]
+labels = [r'$ESN_{joint}$', r'$ESN_1$', r'$ESN_2$']
+
+colors = ['black', 'black', 'black']
+linestyles = ['-', '--', ':']
+
+for y_values, label, color, ls in zip(datasets, labels, colors, linestyles):
+    if y_values.shape[1] == 1:
+        y_means = y_values.flatten()
+        plt.plot(x_values, y_means, linestyle=ls, color=color, label=label)
+    else:
+        y_means = np.mean(y_values, axis=1)
+        y_sems = np.std(y_values, axis=1, ddof=1) / np.sqrt(y_values.shape[1])
+        plt.plot(x_values, y_means, linestyle=ls, color=color, label=label)
+        plt.fill_between(x_values, y_means - y_sems, y_means + y_sems,
+                         color='gray', alpha=0.3)
+
+        
+plt.xlabel('Coupling Strength')
+plt.ylabel('Avg. Pcorrect')
+plt.grid(True)
+plt.legend(loc='upper right')
+plt.savefig(f'plt_figs/performance.png', dpi=300)
 
 
 
