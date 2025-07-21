@@ -30,5 +30,6 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# misc folder
+# ignore folders:
 misc/
+R scripts/
