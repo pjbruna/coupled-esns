@@ -4,7 +4,6 @@ import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
 from cesn_model import *
-from functions import *
 
 rpy.verbosity(0)
 
@@ -17,7 +16,9 @@ seed_num = None # seed reservoirs?
 train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
 r1_size = 500 # reservoir 1 size
-r2_size = r1_size # int(r1_size / 2) # reservoir 2 size
+r2_size = r1_size # reservoir 2 size
+
+inequality = 0.3 # non-peer
 
 
 # Curate training data
@@ -77,10 +78,27 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
 
 # Plot
 
-if seed_num==None:
-    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs/NULL_acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs/NULL_acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-else:
-    # plot_coupling_strengths(x=store_couplings, y=store_accuracies_joint, do_print=False, save=f'plt_figs_seed/NULL_acc_x_coupling_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
-    plot_coupling_with_comparison(x=store_couplings, y_joint=store_accuracies_joint, y1=store_accuracies_y1, y2=store_accuracies_y2, do_print=False, save=f'plt_figs_seed/NULL_acc_with_comparison_N={runs}_coupling={coupling_num}_R1={r1_size}_R2={r2_size}_sample={train_sample}.png')
+x_values = np.array(store_couplings)
+datasets = [np.array(store_accuracies_joint), np.array(store_accuracies_y1), np.array(store_accuracies_y2)]
+labels = [r'$ESN_{joint}$', r'$ESN_1$', r'$ESN_2$']
 
+colors = ['black', 'black', 'black']
+linestyles = ['-', '--', ':']
+
+for y_values, label, color, ls in zip(datasets, labels, colors, linestyles):
+    if y_values.shape[1] == 1:
+        y_means = y_values.flatten()
+        plt.plot(x_values, y_means, linestyle=ls, color=color, label=label)
+    else:
+        y_means = np.mean(y_values, axis=1)
+        y_sems = np.std(y_values, axis=1, ddof=1) / np.sqrt(y_values.shape[1])
+        plt.plot(x_values, y_means, linestyle=ls, color=color, label=label)
+        plt.fill_between(x_values, y_means - y_sems, y_means + y_sems,
+                         color='gray', alpha=0.3)
+
+        
+plt.xlabel('Coupling Strength')
+plt.ylabel('Avg. Pcorrect')
+plt.grid(True)
+plt.legend(loc='upper right')
+plt.savefig(f'plt_figs/performance_null.png', dpi=300)

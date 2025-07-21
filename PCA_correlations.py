@@ -44,6 +44,70 @@ import matplotlib.pyplot as plt
 
 ########################################################################################
 
+
+# # Parameters
+# coupling = 1.0
+# n_components = 500
+# n_runs = 10
+# cor_records = []
+# 
+# # Step 1: Load and concatenate all r1 and r2 data for global PCA fitting
+# print("Loading all data for global PCA fit...")
+# all_data = []
+# 
+# for run in range(n_runs):
+#     r1 = pd.read_csv(f"data/savedata/r1_cs={coupling}_r1=500_r2=500_sample=0.5_sim={run}.csv")
+#     r2 = pd.read_csv(f"data/savedata/r2_cs={coupling}_r1=500_r2=500_sample=0.5_sim={run}.csv")
+#     all_data.append(r1)
+#     all_data.append(r2)
+# 
+# combined_data = pd.concat(all_data, axis=0)
+# 
+# # Step 2: Fit global scaler and PCA
+# print("Fitting global scaler and PCA...")
+# scaler = StandardScaler().fit(combined_data)
+# scaled_data = scaler.transform(combined_data)
+# 
+# pca_model = PCA(n_components=n_components).fit(scaled_data)
+# 
+# # Step 3: Apply same PCA to each run and compute PC correlations
+# for run in range(n_runs):
+#     print(f"Processing run {run+1}/{n_runs}...")
+# 
+#     r1 = pd.read_csv(f"data/savedata/r1_cs={coupling}_r1=500_r2=500_sample=0.5_sim={run}.csv")
+#     r2 = pd.read_csv(f"data/savedata/r2_cs={coupling}_r1=500_r2=500_sample=0.5_sim={run}.csv")
+# 
+#     # Use global scaler
+#     scaled_r1 = scaler.transform(r1)
+#     scaled_r2 = scaler.transform(r2)
+# 
+#     # Project into shared PCA space
+#     pca_r1 = pca_model.transform(scaled_r1)
+#     pca_r2 = pca_model.transform(scaled_r2)
+# 
+#     # Compute correlations between all PC pairs
+#     for i in range(n_components):
+#         vec1 = pca_r1[:, i]
+#         for j in range(n_components):
+#             vec2 = pca_r2[:, j]
+#             cor_val = np.corrcoef(vec1, vec2)[0, 1]
+#             cor_records.append({'r1': i + 1, 'r2': j + 1, 'cor': cor_val, 'sim': run})
+# 
+# # Step 4: Aggregate correlations over runs
+# cor_df = pd.DataFrame(cor_records)
+# 
+# summary_df = cor_df.groupby(['r1', 'r2'], as_index=False).agg(
+#     avg_cor=('cor', 'mean'),
+#     se_cor=('cor', lambda x: x.std(ddof=1) / np.sqrt(len(x)))
+# )
+# 
+# # Save results
+# summary_df.to_csv(f"data/savedata/aligned_avg_PCA_correlations_cs={coupling}.csv", index=False)
+
+
+########################################################################################
+
+
 # Plot
 
 # Load CSVs
@@ -64,7 +128,9 @@ cor_df["coupling"] = pd.Categorical(
     ordered=True
 )
 
-# Set up FacetGrid
+
+cor_df = cor_df[(cor_df["r1"] <= 50) & (cor_df["r2"] <= 50)]
+
 g = sns.FacetGrid(
     cor_df,
     col="coupling",
@@ -76,7 +142,6 @@ g = sns.FacetGrid(
     sharey=False
 )
 
-# Plot heatmap in each facet
 def plot_heatmap(data, colorbar=False, **kwargs):
     pivot = data.pivot(index="r2", columns="r1", values="avg_cor")
     pivot = pivot.sort_index(ascending=False)  # y axis bottom-up
@@ -86,8 +151,8 @@ def plot_heatmap(data, colorbar=False, **kwargs):
         pivot,
         cmap="viridis",
         square=True,
-        xticklabels=100,
-        yticklabels=100,
+        xticklabels=10,   # Adjust tick frequency for 50 PCs
+        yticklabels=10,
         vmin=-1,
         vmax=1,
         cbar=colorbar,
@@ -95,7 +160,6 @@ def plot_heatmap(data, colorbar=False, **kwargs):
         **kwargs
     )
 
-# Use FacetGrid to plot each heatmap
 for i, ax in enumerate(g.axes.flat):
     subset = cor_df[cor_df["coupling"] == g.col_names[i]]
     colorbar = (i == len(g.axes.flat) - 1)  # Only last plot gets colorbar
@@ -108,20 +172,17 @@ for ax, title in zip(g.axes.flat, g.col_names):
     ax.text(0.5, 1.05, title, transform=ax.transAxes,
             ha='center', va='bottom', fontsize=12)
 
-# Set identical ticks for x and y axes for all subplots
-tick_positions = np.arange(1, 501, 100)  # ticks at 0,100,200,...500
+# Set ticks for first 50 PCs (every 10th tick for clarity)
+tick_positions = np.arange(1, 51, 10)
 tick_labels = [str(i) for i in tick_positions]
 
 for ax in g.axes.flat:
     ax.set_xlabel(r"$R_1$")
     ax.set_ylabel(r"$R_2$")
-    
-    # Set ticks - note heatmap axis indices start at 0, so adjust accordingly
     ax.set_xticks(tick_positions)
     ax.set_xticklabels(tick_labels)
-    
     ax.set_yticks(tick_positions)
-    ax.set_yticklabels(tick_labels[::-1])  # reversed for bottom-up y-axis
+    ax.set_yticklabels(tick_labels[::-1])  # reversed y-axis
 
 plt.tight_layout()
-plt.savefig("plt_figs/PCA_correlations.png", dpi=300, bbox_inches='tight')
+plt.savefig("plt_figs/PCA_correlations_50PCs.png", dpi=300, bbox_inches='tight')

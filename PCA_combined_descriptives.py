@@ -117,11 +117,13 @@ for coupling in coupling_levels:
     ax1.plot(x, y, '-', color=color, label=str(coupling), linewidth=2)  # Labels here
     ax1.fill_between(x, y - yerr, y + yerr, color=color, alpha=0.2)
 
-ax1.set_ylabel(r"Avg. NMI($R_1$, $R_2$)", color='black')
+ax1.set_ylabel(r"Avg. NMI($R_1$, $R_2$)", color='black', fontsize=14)
+ax1.tick_params(axis='y', labelsize=12)
 ax1.set_ylim(0, 1)
 
 # Shared x-axis label
-ax1.set_xlabel("PC")
+ax1.set_xlabel("PC", fontsize=14)
+ax1.tick_params(axis='x', labelsize=12)
 
 # Plot 2: Cumulative Variance on right y-axis (dashed lines, no labels)
 for coupling in coupling_levels:
@@ -135,7 +137,8 @@ for coupling in coupling_levels:
     ax2.plot(x_vals, y_means, '--', color=color, linewidth=2)  # No label here
     ax2.fill_between(x_vals, y_means - y_sems, y_means + y_sems, color=color, alpha=0.2)
 
-ax2.set_ylabel("Avg. Cumulative Variance Explained", color='black')
+ax2.set_ylabel("Avg. CEV", color='black', fontsize=14)
+ax2.tick_params(axis='y', labelsize=12)
 ax2.set_ylim(0, 1)
 ax2.grid(False)
 ax2.set_xlim(1, 50)
@@ -145,7 +148,7 @@ ax1.grid(True)
 # Legends
 
 legend_kwargs = dict(
-    fontsize='small',
+    fontsize=12,
     borderaxespad=0.5,
     handlelength=2,
     frameon=True,
@@ -154,16 +157,16 @@ legend_kwargs = dict(
 )
 
 handles, labels = ax1.get_legend_handles_labels()
-leg1 = ax1.legend(handles, labels, title=None, loc='upper left', bbox_to_anchor=(0.8, 0.8), **legend_kwargs)
+leg1 = ax1.legend(handles, labels, title=None, loc='upper left', bbox_to_anchor=(0.7, 0.75), **legend_kwargs)
 
 ax1.add_artist(leg1)
 
 line_style_handles = [
-    mlines.Line2D([], [], color='black', linestyle='-', linewidth=2, label='NMI'),
-    mlines.Line2D([], [], color='black', linestyle='--', linewidth=2, label='Cumulative Var.'),
+    mlines.Line2D([], [], color='black', linestyle='-', linewidth=2, label='Left axis'),
+    mlines.Line2D([], [], color='black', linestyle='--', linewidth=2, label='Right axis'),
 ]
 
-leg2 = ax1.legend(handles=line_style_handles, title=None, loc='upper left', bbox_to_anchor=(0.8, 0.9), **legend_kwargs)
+leg2 = ax1.legend(handles=line_style_handles, title=None, loc='upper left', bbox_to_anchor=(0.7, 0.9), **legend_kwargs)
 
 plt.tight_layout()
 plt.savefig('plt_figs/PCA_combined_dual_axis.png', dpi=300)

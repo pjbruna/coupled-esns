@@ -5,7 +5,6 @@ import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
 from cesn_model import *
-from functions import *
 
 rpy.verbosity(0)
 
@@ -20,7 +19,7 @@ reservoir_seeds = None # [42, 24] # seed reservoirs?
 coupling = 1.0 # coupling strength
 train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 r1_size = 500 # reservoir 1 size
-r2_size = r1_size # int(r1_size / 2) # reservoir 2 size
+r2_size = r1_size # reservoir 2 size
 
 
 # Curate training data
