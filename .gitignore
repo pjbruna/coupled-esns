@@ -29,3 +29,6 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 *.pyo
+
+# misc folder
+misc/
