@@ -3,21 +3,17 @@ import random
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
-from reservoirpy.datasets import japanese_vowels
+from reservoirpy.datasets import santafe_laser, to_forecasting
 from cesn_model import *
 
 rpy.verbosity(0)
 
-# seed = 42
-# np.random.seed(seed)
 
 # Hyperparams
 
-runs = 10 # number of runs
+runs = 5 # number of runs
 coupling_num = 11 # number of coupling strengths to test
 reservoir_seeds = None # [42,24] # seed reservoirs?
-
-train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
 
 r1_size = 500 # reservoir 1 size
 r2_size = r1_size # reservoir 2 size
@@ -25,27 +21,15 @@ r2_size = r1_size # reservoir 2 size
 
 # Curate training data
 
-X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
+data = santafe_laser()
 
-# sample portion of training data
-sampled_indices1 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False)
-X_train1 = [X_train[i] for i in sampled_indices1]
-Y_train1 = [Y_train[i] for i in sampled_indices1]
+lag = 1 # forecasting time lag
+sample = int(len(data)/2) # proportion for training
 
-if train_sample==0.5:
-    sampled_indices2 = np.setdiff1d(np.arange(len(X_train)), sampled_indices1) # sample (non-overlapping)
-    np.random.shuffle(sampled_indices2)
-    X_train2 = [X_train[i] for i in sampled_indices2]
-    Y_train2 = [Y_train[i] for i in sampled_indices2]
-else:
-    sampled_indices2 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False) # sample (random)
-    X_train2 = [X_train[i] for i in sampled_indices2]
-    Y_train2 = [Y_train[i] for i in sampled_indices2]
-
-
-## identical (vs complementary) training:
-# X_train2 = X_train1
-# Y_train2 = Y_train1
+X_train = [data[:sample]]
+Y_train = [data[lag:sample+lag]]
+X_test = [data[:len(data)-lag]]
+Y_test = [data[lag:]]
 
 
 # Run model
@@ -65,16 +49,17 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
         print(f'Simulation #{r}')
         model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c, is_seed=reservoir_seeds)
 
-        model.train_r1(input=X_train1, target=Y_train1, warmup=0, reset='zero')
-        model.train_r2(input=X_train2, target=Y_train2, warmup=0, reset='zero')
+        model.train_r1(input=X_train, target=Y_train)
+        model.train_r2(input=X_train, target=Y_train)
 
-        results = model.test(input=X_test, target=Y_test, reset='zero')
+        results = model.test(input=X_test, target=Y_test, noise_scale=0, do_print=False, save_reservoir=False)
 
-        joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
+        rmse1 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, results[0])]
+        rmse2 = [np.mean(np.sqrt(np.mean((test - pred)**2, axis=1))) for (test, pred) in zip(Y_test, results[1])]
 
-        acc_joint.append(joint)
-        acc_y1.append(y1)
-        acc_y2.append(y2)
+        acc_joint.append(np.mean((rmse1, rmse2), axis=0)[0])
+        acc_y1.append(rmse1[0])
+        acc_y2.append(rmse2[0])
 
     store_couplings.append(c)
     store_accuracies_joint.append(acc_joint)
@@ -106,7 +91,7 @@ for y_values, label, color, ls in zip(datasets, labels, colors, linestyles):
 
         
 plt.xlabel('Coupling Strength')
-plt.ylabel('Avg. Pcorrect')
+plt.ylabel('Avg. RMSE')
 plt.grid(True)
 plt.legend(loc='upper right')
 # plt.savefig(f'plt_figs/performance.png', dpi=300)

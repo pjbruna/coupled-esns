@@ -10,15 +10,13 @@ rpy.verbosity(0)
 
 # seed = 42
 # np.random.seed(seed)
+# reservoir_seeds = [42,24] # seed reservoirs?
 
 # Hyperparams
 
-runs = 10 # number of runs
+runs = 1 # number of runs
 coupling_num = 11 # number of coupling strengths to test
-reservoir_seeds = None # [42,24] # seed reservoirs?
-
 train_sample = 0.5 # training data size; range of interest: 0.5 (non-overlapping) -- 1 (completely overlapping)
-
 r1_size = 500 # reservoir 1 size
 r2_size = r1_size # reservoir 2 size
 
@@ -26,6 +24,12 @@ r2_size = r1_size # reservoir 2 size
 # Curate training data
 
 X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
+
+# discard signals shorter than 10 timesteps
+X_train = [signal for signal in X_train if len(signal) >= 10]
+Y_train = [signal for signal in Y_train if len(signal) >= 10]
+X_test = [signal for signal in X_test if len(signal) >= 10]
+Y_test = [signal for signal in Y_test if len(signal) >= 10]
 
 # sample portion of training data
 sampled_indices1 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False)
@@ -43,11 +47,6 @@ else:
     Y_train2 = [Y_train[i] for i in sampled_indices2]
 
 
-## identical (vs complementary) training:
-# X_train2 = X_train1
-# Y_train2 = Y_train1
-
-
 # Run model
 
 store_couplings = []
@@ -63,14 +62,23 @@ for c in np.linspace(0.0, 1.0, num=coupling_num):
 
     for r in range(runs):
         print(f'Simulation #{r}')
-        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c, is_seed=reservoir_seeds)
+        model = CesnModel(r1_nnodes=r1_size, r2_nnodes=r2_size, coupling_strength=c)
 
-        model.train_r1(input=X_train1, target=Y_train1, warmup=0, reset='zero')
-        model.train_r2(input=X_train2, target=Y_train2, warmup=0, reset='zero')
+        model.train_r1(input=X_train1, target=Y_train1, warmup=5, reset='random')
+        model.train_r2(input=X_train2, target=Y_train2, warmup=5, reset='random')
 
-        results = model.test(input=X_test, target=Y_test, reset='zero')
+        results = model.test(input=X_test, target=Y_test, reset='random')
 
-        joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
+        # calculate accuracy
+        y1_final = [signal[-1] for signal in results[0]]
+        y2_final = [signal[-1] for signal in results[1]]
+        targets_final = [signal[-1] for signal in Y_test]
+
+        acc1 = [np.argmax(test) == np.argmax(pred1) for (test, pred1) in zip(targets_final, y1_final)]
+        acc2 = [np.argmax(test) == np.argmax(pred2) for (test, pred2) in zip(targets_final, y2_final)]
+        acc_joint = [np.argmax(test) == np.argmax(np.mean((pred1, pred2), axis=0)) for (test, pred1, pred2) in zip(targets_final, y1_final, y2_final)]
+
+        joint, y1, y2 = np.mean(acc_joint), np.mean(acc1), np.mean(acc2)
 
         acc_joint.append(joint)
         acc_y1.append(y1)

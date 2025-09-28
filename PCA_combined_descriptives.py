@@ -76,7 +76,7 @@ import matplotlib.lines as mlines
 
 
 # Load data for first plot
-cum_var_df = pd.read_csv("data/savedata/avg_PCA_variance.csv")
+cum_var_df = pd.read_csv("data/unequal/avg_PCA_variance.csv")
 cum_var_df['coupling'] = cum_var_df['coupling'].astype(str).astype('category')
 
 new_labels = {'0.0': 'Coupling=0.0', '0.5': 'Coupling=0.5', '1.0': 'Coupling=1.0'}
@@ -86,9 +86,9 @@ manual_colors = ['#9ecae1', '#2171b5', '#08306b']
 colors = {level: manual_colors[i] for i, level in enumerate(coupling_levels)}
 
 # Load data for second plot
-df_none = pd.read_csv("data/savedata/avg_PCA_mutualinformation_cs=0.0.csv")
-df_loose = pd.read_csv("data/savedata/avg_PCA_mutualinformation_cs=0.5.csv")
-df_tight = pd.read_csv("data/savedata/avg_PCA_mutualinformation_cs=1.0.csv")
+df_none = pd.read_csv("data/unequal/avg_PCA_mutualinformation_cs=0.0.csv")
+df_loose = pd.read_csv("data/unequal/avg_PCA_mutualinformation_cs=0.5.csv")
+df_tight = pd.read_csv("data/unequal/avg_PCA_mutualinformation_cs=1.0.csv")
 
 df_none['coupling'] = "Coupling=0.0"
 df_loose['coupling'] = "Coupling=0.5"
@@ -169,5 +169,5 @@ line_style_handles = [
 leg2 = ax1.legend(handles=line_style_handles, title=None, loc='upper left', bbox_to_anchor=(0.7, 0.9), **legend_kwargs)
 
 plt.tight_layout()
-plt.savefig('plt_figs/PCA_combined_dual_axis.png', dpi=300)
+plt.savefig('plt_figs/PCA_combined_dual_axis_inequality=0.2.png', dpi=300)
 
