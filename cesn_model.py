@@ -497,6 +497,6 @@ class CesnModel_V2:
     def accuracy(self, pred1=None, pred2=None, target=None):
         acc1 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred1)] # integrate readouts over time and select most active node as decision
         acc2 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred2)]
-        acc_joint = [np.argmax(test[0]) == np.argmax(np.sum(np.mean((p1, p2), axis=0), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)] # avg readouts for joint decision
+        acc_joint = [np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)] # avg readouts for joint decision
 
         return np.mean(acc_joint), np.mean(acc1), np.mean(acc2)

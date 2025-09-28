@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
-from reservoirpy.datasets import japanese_vowels
+from data_preprocessing import *
 from cesn_model import *
  
 
@@ -18,36 +18,11 @@ rpy.verbosity(0)
 
 # Hyperparams
 
-runs = 25
+runs = 2
 train_sample = 1 # proportion of training data; range: 0.5 (non-overlapping) -- 1 (completely overlapping)
 noise = [0, 0] # noise added to input signals during testing (equal vs unequal conditions)
 rsize = 500
 reset_state = 'zero' # reset reservoirs between signals
-
-
-# Curate training data
-
-X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
-
-# sample portion of training data
-sampled_indices1 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False)
-X_train1 = [X_train[i] for i in sampled_indices1]
-Y_train1 = [Y_train[i] for i in sampled_indices1]
-
-if train_sample==0.5:
-    sampled_indices2 = np.setdiff1d(np.arange(len(X_train)), sampled_indices1) # sample (non-overlapping)
-    np.random.shuffle(sampled_indices2)
-    X_train2 = [X_train[i] for i in sampled_indices2]
-    Y_train2 = [Y_train[i] for i in sampled_indices2]
-else:
-    sampled_indices2 = np.random.choice(len(X_train), size=int(len(X_train) * train_sample), replace=False) # sample (random)
-    X_train2 = [X_train[i] for i in sampled_indices2]
-    Y_train2 = [Y_train[i] for i in sampled_indices2]
-
-
-# # identical (vs complementary) training:
-# X_train2 = X_train1
-# Y_train2 = Y_train1
 
 
 # Run model
@@ -64,13 +39,12 @@ for c in ["independent", "interaction"]:
 
     for r in range(runs):
         print(f'Simulation #{r}')
+        X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10)
+
         model = CesnModel_V2(r1_nnodes=rsize, r2_nnodes=rsize)
-
-        model.train_r1(input=X_train1, target=Y_train1, reset=reset_state)
-        model.train_r2(input=X_train2, target=Y_train2, reset=reset_state)
-
+        model.train_r1(input=X_train, target=Y_train, reset=reset_state)
+        model.train_r2(input=X_train, target=Y_train, reset=reset_state)
         results = model.test(input=X_test, target=Y_test, condition=c, input_sigma=noise, reset=reset_state)
-
         joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
         acc_joint.append(joint)
