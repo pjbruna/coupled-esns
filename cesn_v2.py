@@ -18,9 +18,9 @@ rpy.verbosity(0)
 
 # Hyperparams
 
-runs = 2
-train_sample = 1 # proportion of training data; range: 0.5 (non-overlapping) -- 1 (completely overlapping)
-noise = [0, 0] # noise added to input signals during testing (equal vs unequal conditions)
+runs = 50
+siglen = 10 # filter and truncate train/test signals
+noise = [1,1] # noise added to input signals during testing (equal vs unequal conditions)
 rsize = 500
 reset_state = 'zero' # reset reservoirs between signals
 
@@ -32,18 +32,23 @@ store_accuracies_joint = []
 store_accuracies_y1 = []
 store_accuracies_y2 = []
 
+init=True
+
 for c in ["independent", "interaction"]:
     acc_joint = []
     acc_y1 = []
     acc_y2 = []
 
     for r in range(runs):
+        X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=siglen, do_print=init)
+        init=False
+
         print(f'Simulation #{r}')
-        X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10)
 
         model = CesnModel_V2(r1_nnodes=rsize, r2_nnodes=rsize)
         model.train_r1(input=X_train, target=Y_train, reset=reset_state)
         model.train_r2(input=X_train, target=Y_train, reset=reset_state)
+
         results = model.test(input=X_test, target=Y_test, condition=c, input_sigma=noise, reset=reset_state)
         joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
@@ -71,7 +76,7 @@ for c in ["independent", "interaction"]:
 
             for (name, item) in zip(['y1', 'y2', 'yjoint'], [y1, y2, yjoint]): # r1, r2
                 df = pd.DataFrame(item, columns=[f'X{i}' for i in range(len(item[0]))])
-                df.to_csv(f'data/v2/{name}_{c}_r={rsize}_train={train_sample}_reset={reset_state}_noise={noise}_sim={r}.csv', index=False)
+                df.to_csv(f'data/v2/{name}_{c}_r={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}_sim={r}.csv', index=False)
 
     store_couplings.append(c)
     store_accuracies_joint.append(acc_joint)
@@ -114,5 +119,5 @@ plt.xlabel('Coupling Type')
 plt.ylabel('Avg. Pcorrect')
 plt.grid(True)
 plt.legend(loc='upper right')
-# plt.savefig(f'plt_figs/v2/performance_runs={runs}_reset={reset_state}_warmup={wrmup}_train={train_sample}_inequality={ineq}.png', dpi=300)
-plt.show()
+plt.savefig(f'plt_figs/v2/performance_runs={runs}_rsize={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}.png', dpi=300)
+# plt.show()
