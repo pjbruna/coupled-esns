@@ -444,12 +444,17 @@ class CesnModel_V2:
 
                 else:
                     if condition=="independent":
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None) # monadic auto-feedback
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None) # monadic (auto-)feedback
                         input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout2.state()), axis=None)
                     
                     if condition=="interaction":
                         input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout2.state()), axis=None) # polyadic feedback
                         input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout1.state()), axis=None)
+
+                    if condition=="integration":
+                        avg_fb = np.mean([self.readout1.state(), self.readout2.state()], axis=0)
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * avg_fb, bias_b * avg_fb), axis=None) # integrated feedback
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * avg_fb, bias_b * avg_fb), axis=None)
 
                 # harvest reservoir states + predictions
                 rstate1 = self.reservoir1.run(input_fb_1)
@@ -497,6 +502,15 @@ class CesnModel_V2:
     def accuracy(self, pred1=None, pred2=None, target=None):
         acc1 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred1)] # integrate readouts over time and select most active node as decision
         acc2 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred2)]
-        acc_joint = [np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)] # avg readouts for joint decision
 
-        return np.mean(acc_joint), np.mean(acc1), np.mean(acc2)
+        # dyad accuracy (if coupled) // wisdom of the crowd (if uncoupled)
+        acc_joint = np.mean([np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)]) # avg readouts for joint decision
+
+        # accuracy of more (and less) sensitive esn in the dyad
+        upper_acc = np.max([np.mean(acc1), np.mean(acc2)])
+        lower_acc = np.min([np.mean(acc1), np.mean(acc2)])
+
+        # avg esn accuracy
+        avg_acc = np.mean([np.mean(acc1), np.mean(acc2)])
+
+        return acc_joint, upper_acc, lower_acc, avg_acc

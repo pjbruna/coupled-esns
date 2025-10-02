@@ -17,27 +17,29 @@ rpy.verbosity(0)
 
 
 # Hyperparams
-
+ 
 runs = 50
 siglen = 10 # filter and truncate train/test signals
-noise = [1,1] # noise added to input signals during testing (equal vs unequal conditions)
+noise = [0,0.2] # noise added to input signals during testing (equal vs unequal conditions)
 rsize = 500
 reset_state = 'zero' # reset reservoirs between signals
 
 
 # Run model
 
-store_couplings = []
+store_coupling = []
 store_accuracies_joint = []
-store_accuracies_y1 = []
-store_accuracies_y2 = []
+store_accuracies_upper = []
+store_accuracies_lower = []
+store_accuracies_avg = []
 
 init=True
 
-for c in ["independent", "interaction"]:
+for c in ["independent", "interaction", "integration"]:
     acc_joint = []
-    acc_y1 = []
-    acc_y2 = []
+    acc_upper = []
+    acc_lower = []
+    acc_avg = []
 
     for r in range(runs):
         X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=siglen, do_print=init)
@@ -50,11 +52,12 @@ for c in ["independent", "interaction"]:
         model.train_r2(input=X_train, target=Y_train, reset=reset_state)
 
         results = model.test(input=X_test, target=Y_test, condition=c, input_sigma=noise, reset=reset_state)
-        joint, y1, y2 = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
+        joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
         acc_joint.append(joint)
-        acc_y1.append(y1)
-        acc_y2.append(y2)
+        acc_upper.append(upper)
+        acc_lower.append(lower)
+        acc_avg.append(avg)
 
         # Save
 
@@ -78,46 +81,92 @@ for c in ["independent", "interaction"]:
                 df = pd.DataFrame(item, columns=[f'X{i}' for i in range(len(item[0]))])
                 df.to_csv(f'data/v2/{name}_{c}_r={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}_sim={r}.csv', index=False)
 
-    store_couplings.append(c)
+    store_coupling.append(c)
     store_accuracies_joint.append(acc_joint)
-    store_accuracies_y1.append(acc_y1)
-    store_accuracies_y2.append(acc_y2)
+    store_accuracies_upper.append(acc_upper)
+    store_accuracies_lower.append(acc_lower)
+    store_accuracies_avg.append(acc_avg)
     
-    print(f'{c}; nnodes: {rsize};  N: {runs}; pcorrect: {np.mean(acc_joint)}')
+    print(f'{c}; nnodes: {rsize};  N: {runs}; pcorrect (joint): {np.mean(acc_joint)}')
 
 
-# Plot
+# Plot (full barplot)
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Define categorical x-axis
-x_categories = ['independent', 'interaction']
-x_indices = np.arange(len(x_categories))  # [0, 1]
+x_categories = ['independent', 'interaction', 'integration']
+x_indices = np.arange(len(x_categories))
 
 datasets = [np.array(store_accuracies_joint), 
-            np.array(store_accuracies_y1), 
-            np.array(store_accuracies_y2)]
-labels = [r'$ESN_{joint}$', r'$ESN_1$', r'$ESN_2$']
+            np.array(store_accuracies_upper), 
+            np.array(store_accuracies_lower),
+            np.array(store_accuracies_avg)]
+labels = [r'$ESN_{dyad}$', r'$ESN_{max}$', r'$ESN_{min}$', r'$ESN_{avg}$']
 
-colors = ['black', 'black', 'black']
-linestyles = ['-', '--', ':']
+bar_width = 0.2
+offsets = np.linspace(-bar_width*1.5, bar_width*1.5, len(datasets))
 
-for y_values, label, color, ls in zip(datasets, labels, colors, linestyles):
+for y_values, label, offset in zip(datasets, labels, offsets):
     if y_values.shape[1] == 1:
         y_means = y_values.flatten()
-        plt.plot(x_indices, y_means, linestyle=ls, color=color, label=label, marker='o')
+        plt.bar(x_indices + offset, y_means, width=bar_width, label=label)
     else:
         y_means = np.mean(y_values, axis=1)
         y_sems = np.std(y_values, axis=1, ddof=1) / np.sqrt(y_values.shape[1])
-        plt.plot(x_indices, y_means, linestyle=ls, color=color, label=label, marker='o')
-        plt.fill_between(x_indices, y_means - y_sems, y_means + y_sems,
-                         color='gray', alpha=0.3)
+        plt.bar(x_indices + offset, y_means, width=bar_width, yerr=y_sems,
+                capsize=5, label=label)
+        
+    # add mean value above each bar
+    for x, y in zip(x_indices + offset, y_means):
+        plt.text(x, y + 0.02, f"{y:.2f}", ha='center', va='bottom', fontsize=7)
 
-plt.xticks(x_indices, x_categories)  # Set category labels on x-axis
-plt.xlabel('Coupling Type')
-plt.ylabel('Avg. Pcorrect')
-plt.grid(True)
-plt.legend(loc='upper right')
-plt.savefig(f'plt_figs/v2/performance_runs={runs}_rsize={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}.png', dpi=300)
+plt.xticks(x_indices, x_categories)
+# plt.xlabel('Condition')
+plt.ylabel('avg. pcorrect')
+plt.ylim(0, 1)
+plt.grid(axis='y', alpha=0.7)
+plt.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
+plt.tight_layout()
+plt.savefig(f'plt_figs/v2/barplot_full_performance_runs={runs}_rsize={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}.png', dpi=300)
+# plt.show()
+
+
+
+# Plot (partial barplot)
+
+# # independent measure(s)
+# woc = store_accuracies_joint[0]
+# upper = store_accuracies_upper[0]
+# lower = store_accuracies_lower[0]
+# avg = store_accuracies_avg[0]
+# 
+# # interaction measure(s)
+# joint = store_accuracies_joint[1]
+# 
+# # collect data
+# datasets = [lower, upper, avg, woc, joint]
+# labels   = [r"$ESN_{min}$", r"$ESN_{max}$", r"$ESN_{avg}$", r"$ESN_{woc}$", r"$ESN_{dyad}$"]
+# 
+# means = [np.mean(arr) for arr in datasets]
+# sems  = [np.std(arr, ddof=1) / np.sqrt(len(arr)) for arr in datasets]
+# 
+# x_indices = np.arange(len(datasets))
+# 
+# plt.figure(figsize=(7,4))
+# bars = plt.bar(x_indices, means, yerr=sems, capsize=5, width=0.6, color="lightgray", edgecolor="black")
+# plt.xticks(x_indices, labels)
+# plt.ylabel("Avg. Pcorrect")
+# plt.ylim(0, 1)
+# plt.grid(axis='y', alpha=0.6)
+# 
+# # annotate
+# for i, bar in enumerate(bars):
+#     height = bar.get_height()
+#     plt.text(
+#         bar.get_x() + bar.get_width()/2,
+#         height + 0.02,
+#         f"{means[i]:.2f}",
+#         ha='center', va='bottom'
+#     )
+# 
+# plt.tight_layout()
+# # plt.savefig(f'plt_figs/v2/barplot_performance_runs={runs}_rsize={rsize}_reset={reset_state}_noise={noise}_siglen={siglen}.png', dpi=300)
 # plt.show()
