@@ -443,17 +443,21 @@ class CesnModel_V2:
                     input_fb_2 = np.concatenate(((x[t] + noise_2), fb_a, fb_b), axis=None)
 
                 else:
-                    if condition=="independent":
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None) # monadic (auto-)feedback
+                    if condition=="auto": # monadic // auto
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None)
                         input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout2.state()), axis=None)
+
+                    if condition=="allo": # monadic // allo
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout2.state(), bias_b * self.readout2.state()), axis=None)
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None)
                     
-                    if condition=="interaction":
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout2.state()), axis=None) # polyadic feedback
+                    if condition=="poly_parallel": # polyadic // parallel
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout2.state()), axis=None)
                         input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout1.state()), axis=None)
 
-                    if condition=="integration":
+                    if condition=="poly_integr": # polyadic // integrated
                         avg_fb = np.mean([self.readout1.state(), self.readout2.state()], axis=0)
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * avg_fb, bias_b * avg_fb), axis=None) # integrated feedback
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * avg_fb, bias_b * avg_fb), axis=None)
                         input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * avg_fb, bias_b * avg_fb), axis=None)
 
                 # harvest reservoir states + predictions
@@ -489,14 +493,6 @@ class CesnModel_V2:
                 self.reservoir2.reset(to_state=np.random.uniform(-1, 1, size=self.reservoir2.output_dim))
 
         return Y_pred1, Y_pred2, R_states1, R_states2
-
-
-#    def accuracy(self, pred1=None, pred2=None, target=None):
-#        acc1 = [np.argmax(test, axis=1) == np.argmax(pred1, axis=1) for (test, pred1) in zip(target, pred1)]
-#        acc2 = [np.argmax(test, axis=1) == np.argmax(pred2, axis=1) for (test, pred2) in zip(target, pred2)]
-#        acc_joint = [np.argmax(test, axis=1) == np.argmax(np.mean((pred1, pred2), axis=0), axis=1) for (test, pred1, pred2) in zip(target, pred1, pred2)]
-#
-#        return np.mean(np.concatenate(acc_joint)), np.mean(np.concatenate(acc1)), np.mean(np.concatenate(acc2))
     
 
     def accuracy(self, pred1=None, pred2=None, target=None):

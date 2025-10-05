@@ -1,4 +1,6 @@
+import os
 import numpy as np
+import pandas as pd
 from reservoirpy.datasets import japanese_vowels
 
 
@@ -93,3 +95,18 @@ def generate_jvowels(signal_length=None, do_print=False):
         )
 
     return X_train_balanced, Y_train_balanced, X_test_balanced, Y_test_balanced
+
+
+def save_progress(results_list, path, final=False):
+    df = pd.DataFrame(results_list)
+    if final:
+        df.to_csv(path, index=False)
+        print(f"Final results saved to {path} ({len(df)} entries).")
+    else:
+        df.to_csv(
+            path,
+            mode='a',
+            header=not os.path.exists(path),
+            index=False
+        )
+        print(f"Progress saved ({len(df)} total results).")
