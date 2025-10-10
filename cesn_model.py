@@ -313,26 +313,21 @@ class CesnModel:
 
 
 class CesnModel_V2:
-    def __init__(self, r1_nnodes=None, r2_nnodes=None, is_seed=None):
+    def __init__(self, nnodes=None, plink=None, amp=[1,1]):
+        # amplitude of feedback channels
+        self.amp_a = amp[0] # auto
+        self.amp_b = amp[1] # allo
 
         # create reservoirs
-        if is_seed==None:
-            self.reservoir1 = Reservoir(units=r1_nnodes, sr=0.9, lr=0.1, activation='tanh')
-            self.reservoir2 = Reservoir(units=r2_nnodes, sr=0.9, lr=0.1, activation='tanh')
-        else:
-            self.reservoir1 = Reservoir(units=r1_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[0])
-            self.reservoir2 = Reservoir(units=r2_nnodes, sr=0.9, lr=0.1, activation='tanh', seed=is_seed[1])
+        self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=plink[0], sr=0.9, lr=0.1, activation='tanh') # seed=
+        self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=plink[1], sr=0.9, lr=0.1, activation='tanh') # seed=
             
         # create readouts
         self.readout1 = Ridge(ridge=1e-6)
         self.readout2 = Ridge(ridge=1e-6)
 
 
-    def train_r1(self, input=None, target=None, bias=[1,1], teacherfb_sigma=0.2, warmup=0, reset='zero'):
-        # weight auto/allo feedback
-        bias_a = bias[0]
-        bias_b = bias[1]
-
+    def train_r1(self, input=None, target=None, teacherfb_sigma=0.2, warmup=0, reset='zero'):
         train_states = []
         train_targets = []
         for (x, y) in zip(input, target):
@@ -345,8 +340,8 @@ class CesnModel_V2:
 
                     input_fb = np.concatenate((x[t], fb_a, fb_b), axis=None)
                 else:
-                    fb_a = bias_a * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t])))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
-                    fb_b = bias_b * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))))
+                    fb_a = self.amp_a * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t])))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
+                    fb_b = self.amp_b * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))))
 
                     input_fb = np.concatenate((x[t], fb_a, fb_b), axis=None)
 
@@ -370,11 +365,7 @@ class CesnModel_V2:
         return
     
 
-    def train_r2(self, input=None, target=None, bias=[1,1], teacherfb_sigma=0.2, warmup=0, reset='zero'):
-        # weight auto/allo feedback
-        bias_a = bias[0]
-        bias_b = bias[1]
-
+    def train_r2(self, input=None, target=None, teacherfb_sigma=0.2, warmup=0, reset='zero'):
         train_states = []
         train_targets = []
         for (x, y) in zip(input, target):
@@ -387,8 +378,8 @@ class CesnModel_V2:
 
                     input_fb = np.concatenate((x[t], fb_a, fb_b), axis=None) 
                 else:
-                    fb_a = bias_a * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t])))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
-                    fb_b = bias_b * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))))
+                    fb_a = self.amp_a * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t])))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
+                    fb_b = self.amp_b * (y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))))
 
                     input_fb = np.concatenate((x[t], fb_a, fb_b), axis=None)
 
@@ -412,11 +403,7 @@ class CesnModel_V2:
         return
 
 
-    def test(self, input=None, target=None, condition=None, bias=[1,1], input_sigma=[0,0], reset='zero', save_reservoir=False):
-        # weight auto/allo feedback
-        bias_a = bias[0]
-        bias_b = bias[1]
-
+    def test(self, input=None, target=None, condition=None, input_sigma=[0,0], reset='zero', save_reservoir=False):
         Y_pred1 = []
         Y_pred2 = []
         R_states1 = []
@@ -443,22 +430,22 @@ class CesnModel_V2:
                     input_fb_2 = np.concatenate(((x[t] + noise_2), fb_a, fb_b), axis=None)
 
                 else:
-                    if condition=="auto": # monadic // auto
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None)
-                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout2.state()), axis=None)
+                    if condition=="auto": # autocentric
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), self.amp_a * self.readout1.state(), self.amp_b * self.readout1.state()), axis=None)
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), self.amp_a * self.readout2.state(), self.amp_b * self.readout2.state()), axis=None)
 
-                    if condition=="allo": # monadic // allo
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout2.state(), bias_b * self.readout2.state()), axis=None)
-                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout1.state(), bias_b * self.readout1.state()), axis=None)
+                    if condition=="allo": # allocentric
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), self.amp_a * self.readout2.state(), self.amp_b * self.readout2.state()), axis=None)
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), self.amp_a * self.readout1.state(), self.amp_b * self.readout1.state()), axis=None)
                     
-                    if condition=="poly_parallel": # polyadic // parallel
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * self.readout1.state(), bias_b * self.readout2.state()), axis=None)
-                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * self.readout2.state(), bias_b * self.readout1.state()), axis=None)
+                    if condition=="poly_parall": # polycentric (parallel streams)
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), self.amp_a * self.readout1.state(), self.amp_b * self.readout2.state()), axis=None)
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), self.amp_a * self.readout2.state(), self.amp_b * self.readout1.state()), axis=None)
 
-                    if condition=="poly_integr": # polyadic // integrated
+                    if condition=="poly_integr": # polycentric (integrated streams)
                         avg_fb = np.mean([self.readout1.state(), self.readout2.state()], axis=0)
-                        input_fb_1 = np.concatenate(((x[t] + noise_1), bias_a * avg_fb, bias_b * avg_fb), axis=None)
-                        input_fb_2 = np.concatenate(((x[t] + noise_2), bias_a * avg_fb, bias_b * avg_fb), axis=None)
+                        input_fb_1 = np.concatenate(((x[t] + noise_1), self.amp_a * avg_fb, self.amp_b * avg_fb), axis=None)
+                        input_fb_2 = np.concatenate(((x[t] + noise_2), self.amp_a * avg_fb, self.amp_b * avg_fb), axis=None)
 
                 # harvest reservoir states + predictions
                 rstate1 = self.reservoir1.run(input_fb_1)

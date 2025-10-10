@@ -27,7 +27,7 @@ for sim in range(runs):
 
     for i, noise_1 in enumerate(noise_range):
         for noise_2 in noise_range[i:]:
-            for cond in ["auto", "allo", "poly_parallel", "poly_integr"]:   
+            for cond in ["auto", "allo", "poly_parall", "poly_integr"]:   
                 print(f"Simulation #{sim} ...{cond:<15} | noise: {noise_1:.1f} // {noise_2:.1f}")  
                       
                 results = model.test(input=X_test, target=Y_test, condition=cond, input_sigma=[noise_1, noise_2], reset=reset_state)
