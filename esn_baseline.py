@@ -1,79 +1,112 @@
 import numpy as np
 import reservoirpy as rpy
-from sklearn.metrics import accuracy_score
-from reservoirpy.nodes import Reservoir, Ridge, Input
+from reservoirpy.nodes import Reservoir, Ridge
 from reservoirpy.datasets import japanese_vowels
-import matplotlib.pyplot as plt
 
 rpy.verbosity(0)
 
 
-# Load data
+### Hyperparameters ###
+
+nnodes = 500
+warmup = 0
+teacherfb_sigma = 0.2
+feedback = True
+
+
+### Load data ###
 
 X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 
 
-# Initialize ESN layers
+### TODO 1 ###
 
-reservoir = Reservoir(500, sr=0.9, lr=0.1)
+# filter data s.t.
+### signals shorter than 10 timesteps are removed,
+### remaining signals are truncated to shortest length, and 
+### an equal number of signals in each class remain
+### explore the effect of truncating to beginning, middle, or end of signals
+
+
+### TODO 2 ###
+
+# using filtered dataset, train ESN (no feedback) on one timestep per signal for each timestep
+### stop when there are no longer 9 classes represented
+### plot classification accuracy for each timestep
+
+
+### Initialize ESN layers ###
+
+reservoir = Reservoir(nnodes, sr=0.9, lr=0.1)
 readout = Ridge(ridge=1e-6)
 
 
-# Train
+### Train ###
 
-states_train = []
-for x in X_train:
-    states = reservoir.run(x, reset=True)
-    states_train.append(states)
+train_states = []
+train_targets = []
 
-readout.fit(states_train, Y_train)
+for (x, y) in zip(X_train, Y_train):
+    for t in range(len(x)):
+        # create input + feedback
+        if t==0 or not feedback:
+            fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep (or feedback==False)
+            input = np.concatenate((x[t], fb), axis=None)
+        else:
+            fb = (y[t] + (teacherfb_sigma * np.random.randn(len(y[t])))) # teacher feedback + simulated Gaussian noise
+            input = np.concatenate((x[t], fb), axis=None)
+        
+        # harvest reservoir states
+        rstate = reservoir.run(input)
+
+        if t >= warmup:
+            train_states.append(rstate)
+            train_targets.append(y[t, np.newaxis])
+    
+    # reset reservoir
+    reservoir.reset()
+
+# fit readout layer
+readout.fit(train_states, train_targets)
 
 
-# Test
+### Test ###
 
 Y_pred = []
+
 for x in X_test:
-    states = reservoir.run(x, reset=True)
-    y = readout.run(states)
+    y = np.array([np.zeros(readout.output_dim)] * len(x))
+
+    for t in range(len(x)):
+        if t==0 or not feedback:
+            fb = np.array(np.zeros(readout.output_dim)) # no feedback on first timestep (or feedback==False)
+            input = np.concatenate((x[t], fb), axis=None)
+        else:
+            input = np.concatenate((x[t], readout.state()), axis=None)
+
+        # harvest reservoir states + predictions
+        rstate = reservoir.run(input)
+        pred = readout.run(rstate)
+
+        # store
+        y[t] = pred
+
+    # store
     Y_pred.append(y)
 
-sqrloss = [(test - pred)**2 for (test, pred) in zip(Y_test, Y_pred)]
-rmse = np.sqrt(np.mean(np.mean(sqrloss, axis=1)))
-
-print(f'RMSE; {rmse}')
+    # reset reservoir
+    reservoir.reset()
 
 
-# Score
-
-Y_pred_class = [np.argmax(y_p) for y_p in Y_pred]
-Y_test_class = [np.argmax(y_t) for y_t in Y_test]
-
-score = accuracy_score(Y_test_class, Y_pred_class)
-
-print("Accuracy: ", f"{score * 100:.3f} %")
+# integrate readouts over time and select most active node as decision
+acc = [np.argmax(target[0]) == np.argmax(np.sum(pred, axis=0)) for (target, pred) in zip(Y_test, Y_pred)]
+print(f"Pcorrect: {np.mean(acc)}")
 
 
-# Plot decision trajectories
+### TODO 3 ###
 
-signals_by_class = {i: [] for i in range(9)}
-for i, (y_true, y_seq) in enumerate(zip(Y_test_class, Y_pred)):
-    signals_by_class[y_true].append(y_seq)
-
-for category, signals in signals_by_class.items():
-    n_signals = len(signals)
-    fig, axes = plt.subplots(n_signals, 1, figsize=(10, 2*n_signals), sharex=True, sharey=True)
-    
-    if n_signals == 1:
-        axes = [axes]  # ensure iterable if only one signal
-    
-    for idx, (ax, signal) in enumerate(zip(axes, signals)):
-        for readout_idx in range(9):
-            ax.plot(signal[:, readout_idx], label=f"Readout {readout_idx+1}")
-        ax.set_title(f"Category {category} - Signal {idx+1}")
-        ax.set_ylabel("Activation")
-    
-    axes[-1].set_xlabel("Time step")
-    fig.suptitle(f"Readout activations over time for category {category}", fontsize=14)
-    fig.tight_layout(rect=[0, 0, 1, 0.97])
-    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    plt.show()
+# plot readout values on each signal per class
+### x axis: time
+### y value: activation value (m + se, averaged over at least 10 simulations)
+### color/fill: node
+### save plots as .png

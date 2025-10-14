@@ -418,7 +418,7 @@ class CesnModel_V2:
                 r2 = np.array([np.zeros(self.reservoir2.output_dim)] * len(x))
 
             for t in range(len(x)):
-                # noise inputs (inequality condition)
+                # noise inputs
                 noise_1 = (np.random.randn(len(x[t])) * input_sigma[0])
                 noise_2 = (np.random.randn(len(x[t])) * input_sigma[1])
 
