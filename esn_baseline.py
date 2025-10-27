@@ -11,7 +11,7 @@ rpy.verbosity(0)
 nnodes = 500
 warmup = 0
 teacherfb_sigma = 0.2
-feedback = True
+feedback = False
 
 
 ### Load data ###

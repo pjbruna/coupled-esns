@@ -4,7 +4,7 @@ import reservoirpy as rpy
 from reservoirpy.nodes import Reservoir, Ridge
 
 
-# Model functions
+### FUNCTIONS ###
 
 def generate_null_feedback(bits=None, normalize=None):
         x = np.random.uniform(-1, 1, bits)
@@ -15,7 +15,13 @@ def generate_null_feedback(bits=None, normalize=None):
         return x
 
 
-# Model class
+def select_param(range=None, quant=None, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
+    return rng.choice(range, size=quant, replace=True)
+
+
+### MODEL ###
 
 class CesnModel:
     def __init__(self, r1_nnodes=None, r2_nnodes=None, coupling_strength=None, is_seed=None):
@@ -313,14 +319,18 @@ class CesnModel:
 
 
 class CesnModel_V2:
-    def __init__(self, nnodes=None, plink=None, amp=[1,1]):
+    def __init__(self, nnodes=None, in_plink=None, amp=[1,1], seed=None):
         # amplitude of feedback channels
         self.amp_a = amp[0] # auto
         self.amp_b = amp[1] # allo
 
         # create reservoirs
-        self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=plink[0], sr=0.9, lr=0.1, activation='tanh') # seed=
-        self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=plink[1], sr=0.9, lr=0.1, activation='tanh') # seed=
+        if seed==None:
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh')
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh')
+        else:
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh', seed=seed[0])
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh', seed=seed[1])
             
         # create readouts
         self.readout1 = Ridge(ridge=1e-6)
@@ -487,7 +497,7 @@ class CesnModel_V2:
         acc2 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred2)]
 
         # dyad accuracy (if coupled) // wisdom of the crowd (if uncoupled)
-        acc_joint = np.mean([np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)]) # avg readouts for joint decision
+        joint_acc = np.mean([np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)]) # avg readouts for joint decision
 
         # accuracy of more (and less) sensitive esn in the dyad
         upper_acc = np.max([np.mean(acc1), np.mean(acc2)])
@@ -496,4 +506,4 @@ class CesnModel_V2:
         # avg esn accuracy
         avg_acc = np.mean([np.mean(acc1), np.mean(acc2)])
 
-        return acc_joint, upper_acc, lower_acc, avg_acc
+        return joint_acc, upper_acc, lower_acc, avg_acc
