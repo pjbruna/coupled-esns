@@ -153,5 +153,29 @@ for(targ in c(1:9)){
 }
 ```
 
+```{r}
+avg_preds <- preds_joint %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  group_by(cond, signal, node, sim) %>%
+  arrange(timestep) %>%
+  mutate(cum_act = cumsum(act)) %>%
+  group_by(cond, target, timestep, node) %>%
+  summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop")
+  
+ggplot(avg_preds, aes(x=timestep, y=m, color=node)) +
+  facet_grid(cond~target) +
+  geom_line() +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  labs(x = "timestep",
+       y = "cum(act)",
+       color = "readout",
+       fill = "readout") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size=7),
+        axis.text.y = element_text(size=7))
 
+ggsave(filename = paste0("avgcum_dyad_rotraj.png"), width = 25, height = 4.5) 
+```
 
