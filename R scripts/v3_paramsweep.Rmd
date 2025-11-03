@@ -1,0 +1,270 @@
+---
+title: "parameter sweep"
+output: html_document
+date: "2025-10-31"
+---
+
+```{r}
+library(tidyverse)
+library(colorspace)
+```
+
+```{r}
+base_path <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/"
+```
+
+```{r, message=F}
+batch_1 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_1.csv"))
+batch_2 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_2.csv"))
+batch_3 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_3.csv"))
+batch_4 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_4.csv"))
+batch_5 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_5.csv"))
+batch_6 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_6.csv"))
+
+sweep <- rbind(batch_1, batch_2, batch_3, batch_4, batch_5, batch_6)
+```
+
+```{r}
+sweep_cleaned <- sweep %>% 
+  filter(condition=="auto" | (condition == "poly_integr") & measure == "joint") %>%
+  mutate(measure = case_when(
+    condition=="auto" & measure=="joint" ~ "d_integr",
+    condition=="poly_integr" ~ "d_intera",
+    measure=="upper" ~ "max",
+    measure=="lower" ~ "min",
+    measure=="avg" ~ "avg",
+    TRUE ~ measure
+  )) %>%
+  select(!condition)
+```
+
+```{r}
+sweep_cleaned$measure <- factor(sweep_cleaned$measure, levels = c("min", "avg", "max", "d_integr", "d_intera"))
+sweep_cleaned$rsize <- factor(sweep_cleaned$rsize, levels = c(50, 100, 200, 400, 800, 1600))
+sweep_cleaned$tsigma <- factor(sweep_cleaned$tsigma, levels = c(0.1, 0.2, 0.4, 0.8, 1.6, 3.2))
+sweep_cleaned$plink <- factor(sweep_cleaned$plink, levels = c(0.1, 0.55, 1.0))
+```
+
+
+# param sweep
+
+```{r}
+psweep_df <- sweep_cleaned %>%
+  filter(measure %in% c("max", "d_integr", "d_intera"))
+
+psweep_df$txt_col <- ifelse(round(psweep_df$m, 2) >= 0.6, "black", "white")
+
+ggplot(psweep_df, aes(x=rsize, y=tsigma, fill=round(m, 2))) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  geom_tile(color="white") +
+  scale_fill_continuous_sequential(palette="viridis",
+                                  limits=c(0.5, 0.93), oob = scales::squish, rev=F,
+                                  guide=guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+  geom_text(aes(label=round(m, 2)), color=psweep_df$txt_col, size = 2.5) +
+  labs(fill="pcorrect") +
+  theme_minimal() +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10),
+        legend.title = element_text(size=10, angle = -90, vjust = 1))
+
+ggsave(filename = "v3_psweep.png", bg = "white", width=9, height=7)
+```
+
+
+# difference plots
+
+```{r}
+# calculate differences w.r.t. avg indiv pcorrect + total_nodes
+
+diff_avg_total <- sweep_cleaned %>%
+  filter(measure %in% c("avg", "d_integr", "d_intera")) %>%
+  mutate(total_nodes = case_when(measure!="avg" ~ 2*as.numeric(as.character(rsize)), T ~ as.numeric(as.character(rsize)))) %>%
+  select(!c(rsize, se, txt_col)) %>%
+  pivot_wider(names_from = "measure", values_from = "m") %>%
+  drop_na() %>%
+  mutate(d_integr = round(d_integr-avg, 2),
+         d_intera = round(d_intera-avg, 2)) %>%
+  select(plink, tsigma, total_nodes, d_integr, d_intera) %>%
+  pivot_longer(cols = c(d_integr, d_intera), names_to = "measure", values_to = "value")
+
+diff_avg_total$measure <- factor(diff_avg_total$measure, levels = c("d_integr", "d_intera"))
+diff_avg_total$total_nodes <- factor(diff_avg_total$total_nodes)
+
+
+# calculate differences w.r.t. max indiv pcorrect + rsize
+
+diff_max <- sweep_cleaned %>%
+  filter(measure %in% c("max", "d_integr", "d_intera")) %>%
+  select(!c(se, txt_col)) %>%
+  pivot_wider(names_from = "measure", values_from = "m") %>%
+  drop_na() %>%
+  mutate(d_integr = round(d_integr-max, 2),
+         d_intera = round(d_intera-max, 2)) %>%
+  select(plink, tsigma, rsize, d_integr, d_intera) %>%
+  pivot_longer(cols = c(d_integr, d_intera), names_to = "measure", values_to = "value")
+
+diff_max$measure <- factor(diff_max$measure, levels = c("d_integr", "d_intera"))
+diff_max$rsize <- factor(diff_max$rsize)
+```
+
+```{r}
+diff_avg_total$txt_col <- ifelse(diff_avg_total$value >= 0.1, "black", "white")
+
+ggplot(diff_avg_total, aes(x=total_nodes, y=tsigma, fill=value)) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  geom_tile(color="white") +
+  scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,
+                                  guide = guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+  geom_text(aes(label = round(value, 2)), color = diff_avg_total$txt_col, size = 2) +
+  labs(fill="pcorrect") +
+  theme_minimal() +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10),
+        legend.title = element_text(size=10, angle = -90, vjust = 1))
+
+ggsave(filename = "v3_psweep_diffavgtotal.png", bg = "white", width=6, height=7)
+```
+
+```{r}
+diff_max$txt_col <- ifelse(diff_max$value >= 0.1, "black", "white")
+
+ggplot(diff_max, aes(x=rsize, y=tsigma, fill=value)) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  geom_tile(color="white") +
+  scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,
+                                  guide = guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+  geom_text(aes(label = round(value, 2)), color = diff_max$txt_col, size = 2) +
+  labs(fill="pcorrect") +
+  theme_minimal() +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10),
+        legend.title = element_text(size=10, angle = -90, vjust = 1))
+
+ggsave(filename = "v3_psweep_diffmax.png", bg = "white", width=6, height=7)
+```
+
+
+```{r}
+# calculate dyadic_interaction - dyadic_integration
+
+diff_dd <- sweep_cleaned %>%
+  filter(measure %in% c("d_integr", "d_intera")) %>%
+  select(!c(se, txt_col)) %>%
+  pivot_wider(names_from = "measure", values_from = "m") %>%
+  drop_na() %>%
+  mutate(diff = round(d_intera-d_integr, 2)) %>%
+  select(plink, tsigma, rsize, diff)
+
+diff_dd$rsize <- factor(diff_dd$rsize)
+```
+
+```{r}
+diff_dd$txt_col <- ifelse(diff_dd$diff >= 0.1, "black", "white")
+
+ggplot(diff_dd, aes(x=rsize, y=tsigma, fill=diff)) +
+  facet_grid(plink~., labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  geom_tile(color="white") +
+  scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,
+                                  guide = guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+  geom_text(aes(label = round(diff, 2)), color = diff_dd$txt_col, size = 2) +
+  labs(fill="pcorrect") +
+  theme_minimal() +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10),
+        legend.title = element_text(size=10, angle = -90, vjust = 1))
+
+ggsave(filename = "v3_psweep_diffdd.png", bg = "white", width=4, height=7)
+```
+
+
+# same/mixed heads analysis
+
+```{r, message=F}
+mixed_batch_1 <- read_csv(paste0(base_path, "psweep_mixed_batch_1.csv"))
+mixed_batch_2 <- read_csv(paste0(base_path, "psweep_mixed_batch_2.csv"))
+mixed_batch_3 <- read_csv(paste0(base_path, "psweep_mixed_batch_3.csv"))
+mixed_batch_4 <- read_csv(paste0(base_path, "psweep_mixed_batch_4.csv"))
+mixed_batch_5 <- read_csv(paste0(base_path, "psweep_mixed_batch_5.csv"))
+mixed_batch_6 <- read_csv(paste0(base_path, "psweep_mixed_batch_6.csv"))
+
+mixed_sweep <- rbind(mixed_batch_1, mixed_batch_2, mixed_batch_3, mixed_batch_4, mixed_batch_5, mixed_batch_6)
+```
+
+```{r}
+mixed_sweep_cleaned <- mixed_sweep %>% 
+  filter(condition=="auto" | (condition == "poly_integr") & measure == "joint") %>%
+  mutate(measure = case_when(
+    condition=="auto" & measure=="joint" ~ "d_integr",
+    condition=="poly_integr" ~ "d_intera",
+    measure=="upper" ~ "max",
+    measure=="lower" ~ "min",
+    measure=="avg" ~ "avg",
+    TRUE ~ measure
+  )) %>%
+  select(!condition)
+
+mixed_sweep_cleaned$measure <- factor(mixed_sweep_cleaned$measure, levels = c("min", "avg", "max", "d_integr", "d_intera"))
+```
+
+```{r}
+same_dist <- sweep_cleaned %>%
+  select(measure, m, se) %>%
+  filter(measure %in% c("max", "d_integr", "d_intera")) %>%
+  mutate(cond = "same")
+
+mixed_dist <- mixed_sweep_cleaned %>%
+  select(measure, m, se) %>%
+  filter(measure %in% c("max", "d_integr", "d_intera")) %>%
+  mutate(cond = "mixed")
+
+dist_compar <- rbind(same_dist, mixed_dist) %>%
+  mutate(cond = factor(cond, levels = c("same", "mixed")))
+```
+
+```{r}
+ggplot(dist_compar, aes(x=m)) + 
+  facet_grid(cond~measure) +
+  geom_histogram(binwidth = 0.01)+
+  labs(x="pcorrect") +
+  theme_minimal()
+
+ggsave(filename = "v3_popdistr_counts.png", bg = "white")
+```
+
+
+```{r}
+cols <- diverging_hcl(5, palette = "lisbon")[2:4] # [c(2,4)]
+
+ggplot(dist_compar, aes(x=m, color=measure, fill=measure)) + 
+  facet_grid(cond~.) +
+  geom_density(alpha=0.25) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  labs(x="pcorrect", color="pop.", fill="pop.") +
+  # xlim(0,1) +
+  theme_minimal()
+
+ggsave(filename = "v3_popdistr_meas.png", bg = "white")
+```
+
+```{r}
+cols <- diverging_hcl(5, palette = "broc")[c(4,5)]
+
+ggplot(dist_compar, aes(x=m, color=cond, fill=cond)) + 
+  facet_grid(measure~.) +
+  geom_density(alpha=0.75) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  labs(x="pcorrect", color="pop.", fill="pop.") +
+  theme_minimal()
+
+ggsave(filename = "v3_popdistr_sample.png", bg = "white")
+```
+

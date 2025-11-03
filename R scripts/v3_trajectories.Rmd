@@ -1,0 +1,303 @@
+---
+title: "decision trajectories"
+output: html_document
+date: "2025-11-02"
+---
+
+
+```{r}
+library(tidyverse)
+library(colorspace)
+library(patchwork)
+```
+
+```{r}
+base_path <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
+```
+
+```{r}
+signal_ids <- read.csv(paste0(base_path, "predictions_signal_ids.csv"))
+ytest <- read.csv(paste0(base_path, "predictions_ytest.csv"))
+ytest$target <- apply(ytest, 1, which.max)
+
+metadata <- signal_ids %>%
+  group_by(signal) %>%
+  mutate(timestep = row_number())
+
+metadata$target = ytest$target
+```
+
+```{r, message=FALSE}
+conds <- c("auto", "allo", "poly_integr")
+
+y1_sims <- lapply(0:9, function(i) {
+  do.call(rbind, lapply(conds, function(cond) {
+    read_csv(paste0(base_path, "predictions_y1_sim=", i, "_cond=", cond, ".csv")) %>%
+      mutate(sim = i, model = "y1", cond = cond)
+  }))
+})
+
+y2_sims <- lapply(0:9, function(i) {
+  do.call(rbind, lapply(conds, function(cond) {
+    read_csv(paste0(base_path, "predictions_y2_sim=", i, "_cond=", cond, ".csv")) %>%
+      mutate(sim = i, model = "y2", cond = cond)
+  }))
+})
+
+y1 <- do.call(rbind, y1_sims)
+y2 <- do.call(rbind, y2_sims)
+```
+
+```{r}
+preds <- rbind(y1, y2) %>%
+  cbind(metadata)
+
+preds$cond <- factor(preds$cond, levels = c("auto", "allo", "poly_integr"), labels = c("autocentric", "allocentric", "polycentric"))
+
+# preds$response <- apply(preds[,1:9], 1, which.max)
+```
+
+
+# cumulative activation
+
+```{r}
+cols <- sequential_hcl(9, palette = "lajolla")
+cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
+cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
+
+for(targ in c(1:9)){
+  decision_timeseries_all <- preds %>%
+    filter(target == targ) %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    group_by(model, cond, signal, node, sim) %>%
+    arrange(timestep) %>%
+    mutate(cum_act = cumsum(act)) %>%
+    group_by(model, cond, signal, timestep, node) %>%
+    summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop")
+  
+  p1 <- ggplot(decision_timeseries_all %>% filter(model == "y1"), aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("(y1) speaker_", targ),
+         x = "timestep",
+         y = "cum(act)",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  
+  p2 <- ggplot(decision_timeseries_all %>% filter(model == "y2"), aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("(y2) speaker_", targ),
+         x = "timestep",
+         y = "cum(act)",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  p1 / p2
+  
+  ggsave(filename = paste0("v3_rotraj_800_01_02/rotraj_", targ, ".png"), width = 25, height = 10) 
+}
+```
+
+```{r}
+preds_joint <- preds %>%
+  pivot_longer(cols = colnames(preds[,1:9]), names_to = "node", values_to = "act") %>%
+  pivot_wider(names_from = model, values_from = act) %>%
+  group_by(sim, cond, signal, timestep, node) %>%
+  mutate(yjoint = sum(y1, y2)) %>%
+  pivot_longer(cols = c("y1", "y2", "yjoint"), names_to = "model", values_to = "act") %>%
+  pivot_wider(names_from = node, values_from = act) %>%
+  filter(model == "yjoint")
+```
+
+```{r}
+cols <- sequential_hcl(9, palette = "lajolla")
+cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
+cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
+
+for(targ in c(1:9)){
+  decision_timeseries_all <- preds_joint %>%
+    filter(target == targ) %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    group_by(cond, signal, node, sim) %>%
+    arrange(timestep) %>%
+    mutate(cum_act = cumsum(act)) %>%
+    group_by(cond, signal, timestep, node) %>%
+    summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop")
+  
+  ggplot(decision_timeseries_all, aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("speaker_", targ),
+         x = "timestep",
+         y = "cum(act)",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  ggsave(filename = paste0("v3_rotraj_800_01_02/dyad_rotraj_", targ, ".png"), width = 25, height = 4.5) 
+}
+```
+
+```{r}
+avg_preds <- preds_joint %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  group_by(cond, signal, node, sim) %>%
+  arrange(timestep) %>%
+  mutate(cum_act = cumsum(act)) %>%
+  group_by(cond, target, timestep, node) %>%
+  summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop") %>%
+  mutate(target = paste0("target_", target))
+  
+ggplot(avg_preds, aes(x=timestep, y=m, color=node)) +
+  facet_grid(target~cond) +
+  geom_line() +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  labs(x = "timestep",
+       y = "cum(act)",
+       color = "readout",
+       fill = "readout") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size=7),
+        axis.text.y = element_text(size=7))
+
+ggsave(filename = paste0("v3_rotraj_800_01_02/avg_dyad_rotraj.png"), height = 15, width = 7) 
+```
+
+
+# raw activation
+
+```{r}
+cols <- sequential_hcl(9, palette = "lajolla")
+cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
+cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
+
+for(targ in c(1:9)){
+  decision_timeseries_all <- preds %>%
+    filter(target == targ) %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    group_by(model, cond, signal, timestep, node) %>%
+    summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
+  
+  p1 <- ggplot(decision_timeseries_all %>% filter(model == "y1"), aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("(y1) speaker_", targ),
+         x = "timestep",
+         y = "act",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  
+  p2 <- ggplot(decision_timeseries_all %>% filter(model == "y2"), aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("(y2) speaker_", targ),
+         x = "timestep",
+         y = "act",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  p1 / p2
+  
+  ggsave(filename = paste0("v3_rotraj_800_01_02/raw/rotraj_", targ, ".png"), width = 25, height = 10) 
+}
+```
+
+```{r}
+preds_joint <- preds %>%
+  pivot_longer(cols = colnames(preds[,1:9]), names_to = "node", values_to = "act") %>%
+  pivot_wider(names_from = model, values_from = act) %>%
+  group_by(sim, cond, signal, timestep, node) %>%
+  mutate(yjoint = sum(y1, y2)) %>%
+  pivot_longer(cols = c("y1", "y2", "yjoint"), names_to = "model", values_to = "act") %>%
+  pivot_wider(names_from = node, values_from = act) %>%
+  filter(model == "yjoint")
+```
+
+```{r}
+cols <- sequential_hcl(9, palette = "lajolla")
+cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
+cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
+
+for(targ in c(1:9)){
+  decision_timeseries_all <- preds_joint %>%
+    filter(target == targ) %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    group_by(cond, signal, timestep, node) %>%
+    summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
+  
+  ggplot(decision_timeseries_all, aes(x=timestep, y=m, color=node)) +
+    facet_grid(cond~signal) +
+    geom_line() +
+    geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+    scale_color_manual(values=cols) +
+    scale_fill_manual(values=cols) +
+    labs(title = paste0("speaker_", targ),
+         x = "timestep",
+         y = "act",
+         color = "readout",
+         fill = "readout") +
+    theme_bw() +
+    theme(axis.text.x = element_text(size=7),
+          axis.text.y = element_text(size=7))
+  
+  ggsave(filename = paste0("v3_rotraj_800_01_02/raw/dyad_rotraj_", targ, ".png"), width = 25, height = 4.5) 
+}
+```
+
+```{r}
+avg_preds <- preds_joint %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  group_by(cond, target, timestep, node) %>%
+  summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
+  mutate(target = paste0("target_", target))
+  
+ggplot(avg_preds, aes(x=timestep, y=m, color=node)) +
+  facet_grid(target~cond) +
+  geom_line() +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  labs(x = "timestep",
+       y = "act",
+       color = "readout",
+       fill = "readout") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size=7),
+        axis.text.y = element_text(size=7))
+
+ggsave(filename = paste0("v3_rotraj_800_01_02/raw/avg_dyad_rotraj.png"), height = 15, width = 7) 
+```

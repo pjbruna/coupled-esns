@@ -1,0 +1,137 @@
+---
+title: "performance analyses"
+output: html_document
+date: "2025-11-02"
+---
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(colorspace)
+```
+
+# heterogeneous nets
+
+```{r}
+accuracies_raw <- read_csv("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=100_final.csv")
+```
+
+```{r}
+acc_cleaned <- accuracies_raw %>%
+  pivot_longer(cols = !c(run, condition, noise_1, noise_2), names_to = "measure", values_to = "value") %>%
+  filter(condition=="auto" | (condition == "poly_integr" & measure == "joint")) %>%
+  mutate(measure = case_when(
+    condition=="auto" & measure=="joint" ~ "d_integr",
+    condition=="poly_integr" & measure=="joint" ~ "d_intera",
+    measure=="upper" ~ "max",
+    measure=="lower" ~ "min",
+    measure=="avg" ~ "avg",
+    TRUE ~ measure
+  )) %>%
+  select(!condition)
+```
+
+```{r}
+acc_ratio <- acc_cleaned %>%
+  group_by(noise_1, noise_2, measure) %>%
+  pivot_wider(names_from = measure, values_from = value) %>%
+  mutate(min_max = min / max,
+         dintegr_max = d_integr / max,
+         dintera_max = d_intera / max,
+         noise = case_when(noise_1==0.0 & noise_2==0.0 ~ "none", noise_1==noise_2 ~ "equal", T ~ "unequal")) %>%
+  ungroup() %>%
+  select(noise_1, noise_2, noise, min_max, dintegr_max, dintera_max) %>%
+  pivot_longer(cols = !c(noise_1, noise_2, noise, min_max), names_to = "measure", values_to = "value")
+
+acc_ratio$noise <- factor(acc_ratio$noise, levels = c("none", "unequal", "equal"), labels = c("no noise", "unequal noise", "equal noise"))
+acc_ratio$measure <- factor(acc_ratio$measure, levels = c("dintegr_max", "dintera_max"), labels = c("d_integr", "d_intera"))
+```
+
+```{r}
+cols <- sequential_hcl(5, palette = "batlow")[3:1]
+
+ggplot(acc_ratio %>% filter(noise_1 != 0.5, noise_2 != 0.5),
+       aes(x=min_max, y=value, color=noise, shape=noise)) +
+  facet_grid(measure~.) +
+  geom_point(alpha=0.8, size=2, stroke=1.1) +
+  geom_smooth(method = "lm", aes(group = 1), color = "black", se = F) +
+  geom_hline(yintercept=1, linetype="dashed") +
+  scale_color_manual(values = cols) + 
+  scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+  xlim(0,1) +
+  # ylim(0.4,1.6) +
+  labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10))
+
+# ggsave(filename = "v3_ratios_nsigma=1.0.png", bg = "white", width=7, height=7)
+```
+
+```{r}
+cols <- sequential_hcl(5, palette = "batlow")[3:1]
+
+ggplot(acc_ratio %>% filter(noise_1 != 1.0, noise_2 != 1.0),
+       aes(x=min_max, y=value, color=noise, shape=noise)) +
+  facet_grid(measure~.) +
+  geom_point(alpha=0.8, size=2, stroke=1.1) +
+  geom_smooth(method = "lm", aes(group = 1), color = "black", se = F) +
+  geom_hline(yintercept=1, linetype="dashed") +
+  scale_color_manual(values = cols) + 
+  scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+  xlim(0,1) +
+  # ylim(0.4,1.6) +
+  labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  theme(axis.text = element_text(size=8),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10))
+
+# ggsave(filename = "v3_ratios_nsigma=0.5.png", bg = "white", width=7, height=7)
+```
+
+```{r}
+acc_ratio_summary <- acc_ratio %>%
+  filter(noise_1 != 1.0, noise_2 != 1.0) %>%
+  group_by(noise, measure) %>%
+  summarise(m = mean(value), se = sd(value)/sqrt(n()), .groups = "drop")
+
+acc_ratio_summary$noise <- factor(acc_ratio_summary$noise, levels = c("equal noise", "unequal noise", "no noise"))
+
+ggplot(acc_ratio, aes(x=noise, y=value)) +
+  facet_wrap(~measure) +
+  geom_col(data = acc_ratio_summary,
+          aes(x = noise, y = m), fill = "grey", position = position_dodge(0.9), inherit.aes = FALSE) +
+  geom_errorbar(data = acc_ratio_summary,
+               aes(x = noise, ymin = m - se, ymax = m + se), width = 0.4, position = position_dodge(0.9), inherit.aes = FALSE) +
+  # geom_jitter(alpha=0.1, width = 0.05, position = position_dodge(0.9)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  labs(y=expression(P[dyad] / P[max])) +
+  theme_minimal() +
+  theme(axis.title.x = element_blank())
+```
+
+```{r}
+acc_ratio_summary <- acc_ratio %>%
+  filter(noise_1 != 0.5, noise_2 != 0.5) %>%
+  group_by(noise, measure) %>%
+  summarise(m = mean(value), se = sd(value)/sqrt(n()), .groups = "drop")
+
+acc_ratio_summary$noise <- factor(acc_ratio_summary$noise, levels = c("equal noise", "unequal noise", "no noise"))
+
+ggplot(acc_ratio, aes(x=noise, y=value)) +
+  facet_wrap(~measure) +
+  geom_col(data = acc_ratio_summary,
+          aes(x = noise, y = m), fill = "grey", position = position_dodge(0.9), inherit.aes = FALSE) +
+  geom_errorbar(data = acc_ratio_summary,
+               aes(x = noise, ymin = m - se, ymax = m + se), width = 0.4, position = position_dodge(0.9), inherit.aes = FALSE) +
+  # geom_jitter(alpha=0.1, width = 0.05, position = position_dodge(0.9)) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  labs(y=expression(P[dyad] / P[max])) +
+  theme_minimal() +
+  theme(axis.title.x = element_blank())
+```
+

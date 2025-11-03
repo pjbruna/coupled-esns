@@ -8,10 +8,8 @@ from reservoirpy.nodes import Reservoir, Ridge
 
 def generate_null_feedback(bits=None, normalize=None):
         x = np.random.uniform(-1, 1, bits)
-
         if normalize==True:
             x = x / np.sum(x)
-
         return x
 
 
@@ -460,6 +458,182 @@ class CesnModel_V2:
                 # harvest reservoir states + predictions
                 rstate1 = self.reservoir1.run(input_fb_1)
                 rstate2 = self.reservoir2.run(input_fb_2)
+
+                ypred1 = self.readout1.run(rstate1)
+                ypred2 = self.readout2.run(rstate2)
+
+                # store
+                y1[t] = ypred1
+                y2[t] = ypred2
+
+                if save_reservoir==True:
+                    r1[t] = rstate1
+                    r2[t] = rstate2
+
+            # store
+            Y_pred1.append(y1)
+            Y_pred2.append(y2)
+
+            if save_reservoir==True:
+                R_states1.append(r1)
+                R_states2.append(r2)
+
+            # reset reservoirs
+            if reset=='zero':
+                self.reservoir1.reset()
+                self.reservoir2.reset()
+                
+            if reset=='random':
+                self.reservoir1.reset(to_state=np.random.uniform(-1, 1, size=self.reservoir1.output_dim))
+                self.reservoir2.reset(to_state=np.random.uniform(-1, 1, size=self.reservoir2.output_dim))
+
+        return Y_pred1, Y_pred2, R_states1, R_states2
+    
+
+    def accuracy(self, pred1=None, pred2=None, target=None):
+        acc1 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred1)] # integrate readouts over time and select most active node as decision
+        acc2 = [np.argmax(test[0]) == np.argmax(np.sum(pred, axis=0)) for (test, pred) in zip(target, pred2)]
+
+        # dyad accuracy (if coupled) // wisdom of the crowd (if uncoupled)
+        joint_acc = np.mean([np.argmax(test[0]) == np.argmax(np.sum(np.sum((p1, p2), axis=1), axis=0)) for (test, p1, p2) in zip(target, pred1, pred2)]) # avg readouts for joint decision
+
+        # accuracy of more (and less) sensitive esn in the dyad
+        upper_acc = np.max([np.mean(acc1), np.mean(acc2)])
+        lower_acc = np.min([np.mean(acc1), np.mean(acc2)])
+
+        # avg esn accuracy
+        avg_acc = np.mean([np.mean(acc1), np.mean(acc2)])
+
+        return joint_acc, upper_acc, lower_acc, avg_acc
+    
+
+
+#############################################
+
+
+
+class CesnModel_V3:
+    def __init__(self, nnodes=None, in_plink=None, seed=None):
+        # create reservoirs
+        if seed==None:
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh')
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh')
+        else:
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh', seed=seed[0])
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh', seed=seed[1])
+            
+        # create readouts
+        self.readout1 = Ridge(ridge=1e-6)
+        self.readout2 = Ridge(ridge=1e-6)
+
+
+    def train_r1(self, input=None, target=None, teacherfb_sigma=0.2, warmup=0, reset='zero'):
+        train_states = []
+        train_targets = []
+        for (x, y) in zip(input, target):
+            for t in range(len(x)):
+                # create input + feedback
+                if t==0:
+                    fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep
+                    input_fb = np.concatenate((x[t], fb), axis=None)
+                else:
+                    fb = y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
+                    input_fb = np.concatenate((x[t], fb), axis=None)
+
+                # harvest reservoir states
+                rstate = self.reservoir1.run(input_fb)
+
+                if t >= warmup:
+                    train_states.append(rstate)
+                    train_targets.append(y[t, np.newaxis])
+
+            # reset reservoirs
+            if reset=='zero':
+                self.reservoir1.reset()
+
+            if reset=='random':
+                self.reservoir1.reset(to_state=np.random.uniform(-1, 1, size=self.reservoir1.output_dim))
+
+        # fit readout layer
+        self.readout1.fit(train_states, train_targets)
+
+        return
+    
+
+    def train_r2(self, input=None, target=None, teacherfb_sigma=0.2, warmup=0, reset='zero'):
+        train_states = []
+        train_targets = []
+        for (x, y) in zip(input, target):
+            for t in range(len(x)):
+                # create input + feedback
+                if t==0:
+                    fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep
+                    input_fb = np.concatenate((x[t], fb), axis=None) 
+                else:
+                    fb = y[t] + (teacherfb_sigma * np.random.randn(len(y[t]))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
+                    input_fb = np.concatenate((x[t], fb), axis=None)
+
+                # harvest reservoir states
+                rstate = self.reservoir2.run(input_fb)
+
+                if t >= warmup:
+                    train_states.append(rstate)
+                    train_targets.append(y[t, np.newaxis])
+
+            # reset reservoirs
+            if reset=='zero':
+                self.reservoir2.reset()
+
+            if reset=='random':
+                self.reservoir2.reset(to_state=np.random.uniform(-1, 1, size=self.reservoir2.output_dim))
+
+        # fit readout layer
+        self.readout2.fit(train_states, train_targets)
+
+        return
+
+
+    def test(self, input=None, target=None, condition=None, input_sigma=[0,0], reset='zero', save_reservoir=False):
+        Y_pred1 = []
+        Y_pred2 = []
+        R_states1 = []
+        R_states2 = []
+
+        for (x, y) in zip(input, target):
+            y1 = np.array([np.zeros(self.readout1.output_dim)] * len(x))
+            y2 = np.array([np.zeros(self.readout2.output_dim)] * len(x))
+
+            if save_reservoir==True:
+                r1 = np.array([np.zeros(self.reservoir1.output_dim)] * len(x))
+                r2 = np.array([np.zeros(self.reservoir2.output_dim)] * len(x))
+
+            for t in range(len(x)):
+                # noise inputs
+                noise1 = (np.random.randn(len(x[t])) * input_sigma[0])
+                noise2 = (np.random.randn(len(x[t])) * input_sigma[1])
+
+                if t==0:
+                    fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep
+                    input_fb1 = np.concatenate(((x[t] + noise1), fb), axis=None)
+                    input_fb2 = np.concatenate(((x[t] + noise2), fb), axis=None)
+
+                else:
+                    if condition=="auto": # autocentric fb
+                        input_fb1 = np.concatenate(((x[t] + noise1), self.readout1.state()), axis=None)
+                        input_fb2 = np.concatenate(((x[t] + noise2), self.readout2.state()), axis=None)
+
+                    if condition=="allo": # allocentric fb
+                        input_fb1 = np.concatenate(((x[t] + noise1), self.readout2.state()), axis=None)
+                        input_fb2 = np.concatenate(((x[t] + noise2), self.readout1.state()), axis=None)
+
+                    if condition=="poly_integr": # polycentric fb (integrated streams)
+                        avg_fb = np.mean([self.readout1.state(), self.readout2.state()], axis=0)
+                        input_fb1 = np.concatenate(((x[t] + noise1), avg_fb), axis=None)
+                        input_fb2 = np.concatenate(((x[t] + noise2), avg_fb), axis=None)
+
+                # harvest reservoir states + predictions
+                rstate1 = self.reservoir1.run(input_fb1)
+                rstate2 = self.reservoir2.run(input_fb2)
 
                 ypred1 = self.readout1.run(rstate1)
                 ypred2 = self.readout2.run(rstate2)

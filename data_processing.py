@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
 from reservoirpy.datasets import japanese_vowels
 
 
@@ -33,7 +34,17 @@ def print_dataset_info(
     print("="*45)
 
 
-def generate_jvowels(signal_length=None, do_print=False):
+def standardize_data(train_data, test_data):
+    train_concat = np.concatenate(train_data, axis=0)
+    scaler = StandardScaler().fit(train_concat)
+
+    train_scaled = [scaler.transform(signal) for signal in train_data]
+    test_scaled = [scaler.transform(signal) for signal in test_data]
+
+    return train_scaled, test_scaled
+
+
+def generate_jvowels(signal_length=None, zscore=False, do_print=False):
     # load data
     X_train, Y_train, X_test, Y_test = japanese_vowels(repeat_targets=True)
 
@@ -93,6 +104,10 @@ def generate_jvowels(signal_length=None, do_print=False):
             X_test, X_test_balanced, 
             n_classes
         )
+
+    if zscore==True:
+        X_train_balanced, X_test_balanced = standardize_data(X_train_balanced, X_test_balanced)
+        Y_train_balanced, Y_test_balanced = standardize_data(Y_train_balanced, Y_test_balanced)
 
     return X_train_balanced, Y_train_balanced, X_test_balanced, Y_test_balanced
 
