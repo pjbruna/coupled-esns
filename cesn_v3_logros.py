@@ -42,7 +42,7 @@ for sim in range(runs):
     model.train_r2(input=X_train, target=Y_train, teacherfb_sigma=tsigma[1])
 
     # test networks
-    for cond in ["auto", "allo", "poly_integr"]:     
+    for cond in ["auto", "allo", "poly"]:     
               
         results = model.test(input=X_test, target=Y_test, condition=cond, reset=reset_state)
         joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)

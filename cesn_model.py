@@ -513,14 +513,14 @@ class CesnModel_V2:
 
 
 class CesnModel_V3:
-    def __init__(self, nnodes=None, in_plink=None, seed=None):
+    def __init__(self, nnodes=None, in_plink=None, rc_plink=[0.1,0.1], seed=None):
         # create reservoirs
         if seed==None:
-            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh')
-            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh')
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], rc_connectivity=rc_plink[0], sr=0.9, lr=0.1, activation='tanh')
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], rc_connectivity=rc_plink[1], sr=0.9, lr=0.1, activation='tanh')
         else:
-            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], sr=0.9, lr=0.1, activation='tanh', seed=seed[0])
-            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], sr=0.9, lr=0.1, activation='tanh', seed=seed[1])
+            self.reservoir1 = Reservoir(units=nnodes[0], input_connectivity=in_plink[0], rc_connectivity=rc_plink[0], sr=0.9, lr=0.1, activation='tanh', seed=seed[0])
+            self.reservoir2 = Reservoir(units=nnodes[1], input_connectivity=in_plink[1], rc_connectivity=rc_plink[1], sr=0.9, lr=0.1, activation='tanh', seed=seed[1])
             
         # create readouts
         self.readout1 = Ridge(ridge=1e-6)
@@ -626,7 +626,7 @@ class CesnModel_V3:
                         input_fb1 = np.concatenate(((x[t] + noise1), self.readout2.state()), axis=None)
                         input_fb2 = np.concatenate(((x[t] + noise2), self.readout1.state()), axis=None)
 
-                    if condition=="poly_integr": # polycentric fb (integrated streams)
+                    if condition=="poly": # polycentric fb
                         avg_fb = np.mean([self.readout1.state(), self.readout2.state()], axis=0)
                         input_fb1 = np.concatenate(((x[t] + noise1), avg_fb), axis=None)
                         input_fb2 = np.concatenate(((x[t] + noise2), avg_fb), axis=None)

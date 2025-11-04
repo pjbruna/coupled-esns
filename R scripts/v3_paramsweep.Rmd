@@ -14,35 +14,32 @@ base_path <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/"
 ```
 
 ```{r, message=F}
-batch_1 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_1.csv"))
-batch_2 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_2.csv"))
-batch_3 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_3.csv"))
-batch_4 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_4.csv"))
-batch_5 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_5.csv"))
-batch_6 <- read_csv(paste0(base_path, "psweep_same/psweep_batch_6.csv"))
+batch_1 <- read_csv(paste0(base_path, "psweep_same_batch_1.csv"))
+batch_2 <- read_csv(paste0(base_path, "psweep_same_batch_2.csv"))
+batch_3 <- read_csv(paste0(base_path, "psweep_same_batch_3.csv"))
+batch_4 <- read_csv(paste0(base_path, "psweep_same_batch_4.csv"))
+batch_5 <- read_csv(paste0(base_path, "psweep_same_batch_5.csv"))
+batch_6 <- read_csv(paste0(base_path, "psweep_same_batch_6.csv"))
 
 sweep <- rbind(batch_1, batch_2, batch_3, batch_4, batch_5, batch_6)
 ```
 
 ```{r}
 sweep_cleaned <- sweep %>% 
-  filter(condition=="auto" | (condition == "poly_integr") & measure == "joint") %>%
+  filter(condition=="auto" | (condition == "poly") & measure == "joint") %>%
   mutate(measure = case_when(
     condition=="auto" & measure=="joint" ~ "d_integr",
-    condition=="poly_integr" ~ "d_intera",
+    condition=="poly" ~ "d_intera",
     measure=="upper" ~ "max",
     measure=="lower" ~ "min",
     measure=="avg" ~ "avg",
     TRUE ~ measure
   )) %>%
-  select(!condition)
-```
-
-```{r}
-sweep_cleaned$measure <- factor(sweep_cleaned$measure, levels = c("min", "avg", "max", "d_integr", "d_intera"))
-sweep_cleaned$rsize <- factor(sweep_cleaned$rsize, levels = c(50, 100, 200, 400, 800, 1600))
-sweep_cleaned$tsigma <- factor(sweep_cleaned$tsigma, levels = c(0.1, 0.2, 0.4, 0.8, 1.6, 3.2))
-sweep_cleaned$plink <- factor(sweep_cleaned$plink, levels = c(0.1, 0.55, 1.0))
+  mutate(rsize = factor(rsize_1),
+         tsigma = factor(tsigma_1),
+         plink = factor(plink_1),
+         measure = factor(measure, levels = c("min", "avg", "max", "d_integr", "d_intera"))) %>%
+  select(measure, m, se, rsize, plink, tsigma)
 ```
 
 
@@ -55,7 +52,7 @@ psweep_df <- sweep_cleaned %>%
 psweep_df$txt_col <- ifelse(round(psweep_df$m, 2) >= 0.6, "black", "white")
 
 ggplot(psweep_df, aes(x=rsize, y=tsigma, fill=round(m, 2))) +
-  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
   geom_tile(color="white") +
   scale_fill_continuous_sequential(palette="viridis",
                                   limits=c(0.5, 0.93), oob = scales::squish, rev=F,
@@ -80,7 +77,7 @@ ggsave(filename = "v3_psweep.png", bg = "white", width=9, height=7)
 diff_avg_total <- sweep_cleaned %>%
   filter(measure %in% c("avg", "d_integr", "d_intera")) %>%
   mutate(total_nodes = case_when(measure!="avg" ~ 2*as.numeric(as.character(rsize)), T ~ as.numeric(as.character(rsize)))) %>%
-  select(!c(rsize, se, txt_col)) %>%
+  select(!c(rsize, se)) %>%
   pivot_wider(names_from = "measure", values_from = "m") %>%
   drop_na() %>%
   mutate(d_integr = round(d_integr-avg, 2),
@@ -96,7 +93,7 @@ diff_avg_total$total_nodes <- factor(diff_avg_total$total_nodes)
 
 diff_max <- sweep_cleaned %>%
   filter(measure %in% c("max", "d_integr", "d_intera")) %>%
-  select(!c(se, txt_col)) %>%
+  select(!se) %>%
   pivot_wider(names_from = "measure", values_from = "m") %>%
   drop_na() %>%
   mutate(d_integr = round(d_integr-max, 2),
@@ -105,14 +102,13 @@ diff_max <- sweep_cleaned %>%
   pivot_longer(cols = c(d_integr, d_intera), names_to = "measure", values_to = "value")
 
 diff_max$measure <- factor(diff_max$measure, levels = c("d_integr", "d_intera"))
-diff_max$rsize <- factor(diff_max$rsize)
 ```
 
 ```{r}
 diff_avg_total$txt_col <- ifelse(diff_avg_total$value >= 0.1, "black", "white")
 
 ggplot(diff_avg_total, aes(x=total_nodes, y=tsigma, fill=value)) +
-  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
   geom_tile(color="white") +
   scale_fill_continuous_diverging(palette="berlin",
                                   limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,
@@ -132,7 +128,7 @@ ggsave(filename = "v3_psweep_diffavgtotal.png", bg = "white", width=6, height=7)
 diff_max$txt_col <- ifelse(diff_max$value >= 0.1, "black", "white")
 
 ggplot(diff_max, aes(x=rsize, y=tsigma, fill=value)) +
-  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
   geom_tile(color="white") +
   scale_fill_continuous_diverging(palette="berlin",
                                   limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,
@@ -154,20 +150,16 @@ ggsave(filename = "v3_psweep_diffmax.png", bg = "white", width=6, height=7)
 
 diff_dd <- sweep_cleaned %>%
   filter(measure %in% c("d_integr", "d_intera")) %>%
-  select(!c(se, txt_col)) %>%
+  select(!se) %>%
   pivot_wider(names_from = "measure", values_from = "m") %>%
   drop_na() %>%
   mutate(diff = round(d_intera-d_integr, 2)) %>%
   select(plink, tsigma, rsize, diff)
 
-diff_dd$rsize <- factor(diff_dd$rsize)
-```
-
-```{r}
 diff_dd$txt_col <- ifelse(diff_dd$diff >= 0.1, "black", "white")
 
 ggplot(diff_dd, aes(x=rsize, y=tsigma, fill=diff)) +
-  facet_grid(plink~., labeller = labeller(plink = c("0.1" = "plink=0.1", "0.55" = "plink=0.55", "1" = "plink=1.0"))) +
+  facet_grid(plink~., labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
   geom_tile(color="white") +
   scale_fill_continuous_diverging(palette="berlin",
                                   limits=c(-0.1, 0.1), oob = scales::squish, l1=75, p2=5, rev=T,

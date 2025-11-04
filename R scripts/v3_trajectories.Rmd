@@ -28,7 +28,7 @@ metadata$target = ytest$target
 ```
 
 ```{r, message=FALSE}
-conds <- c("auto", "allo", "poly_integr")
+conds <- c("auto", "allo", "poly")
 
 y1_sims <- lapply(0:9, function(i) {
   do.call(rbind, lapply(conds, function(cond) {
@@ -52,7 +52,7 @@ y2 <- do.call(rbind, y2_sims)
 preds <- rbind(y1, y2) %>%
   cbind(metadata)
 
-preds$cond <- factor(preds$cond, levels = c("auto", "allo", "poly_integr"), labels = c("autocentric", "allocentric", "polycentric"))
+preds$cond <- factor(preds$cond, levels = c("auto", "allo", "poly"), labels = c("autocentric", "allocentric", "polycentric"))
 
 # preds$response <- apply(preds[,1:9], 1, which.max)
 ```
