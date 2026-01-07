@@ -10,7 +10,8 @@ library(colorspace)
 ```
 
 ```{r}
-base_path <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/"
+cond = "n2"
+base_path <- paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/", cond, "/")
 ```
 
 ```{r, message=F}
@@ -52,20 +53,20 @@ psweep_df <- sweep_cleaned %>%
 psweep_df$txt_col <- ifelse(round(psweep_df$m, 2) >= 0.6, "black", "white")
 
 ggplot(psweep_df, aes(x=rsize, y=tsigma, fill=round(m, 2))) +
-  facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
-  geom_tile(color="white") +
-  scale_fill_continuous_sequential(palette="viridis",
-                                  limits=c(0.5, 0.93), oob = scales::squish, rev=F,
-                                  guide=guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
-  geom_text(aes(label=round(m, 2)), color=psweep_df$txt_col, size = 2.5) +
-  labs(fill="pcorrect") +
-  theme_minimal() +
-  theme(axis.text = element_text(size=8),
-        axis.title = element_text(size=10),
-        strip.text = element_text(size=10),
-        legend.title = element_text(size=10, angle = -90, vjust = 1))
+ facet_grid(plink~measure, labeller = labeller(plink = c("0.1" = "plink=0.1", "0.3" = "plink=0.3", "0.5" = "plink=0.5"))) +
+ geom_tile(color="white") +
+ scale_fill_continuous_sequential(palette="viridis",
+                                 limits=c(0.5, 0.93), oob = scales::squish, rev=F,
+                                 guide=guide_colorbar(label=F, title.position="right", title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+ geom_text(aes(label=round(m, 2)), color=psweep_df$txt_col, size = 2.5) +
+ labs(fill="pcorrect") +
+ theme_minimal() +
+ theme(axis.text = element_text(size=8),
+       axis.title = element_text(size=10),
+       strip.text = element_text(size=10),
+       legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = "v3_psweep.png", bg = "white", width=9, height=7)
+ggsave(filename = paste0("v3_psweep_", cond, ".png"), bg = "white", width=9, height=7)
 ```
 
 
@@ -121,7 +122,7 @@ ggplot(diff_avg_total, aes(x=total_nodes, y=tsigma, fill=value)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = "v3_psweep_diffavgtotal.png", bg = "white", width=6, height=7)
+ggsave(filename = paste0("v3_psweep_diffavgtotal_", cond, ".png"), bg = "white", width=6, height=7)
 ```
 
 ```{r}
@@ -141,7 +142,7 @@ ggplot(diff_max, aes(x=rsize, y=tsigma, fill=value)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = "v3_psweep_diffmax.png", bg = "white", width=6, height=7)
+ggsave(filename = paste0("v3_psweep_diffmax_", cond, ".png"), bg = "white", width=6, height=7)
 ```
 
 
@@ -172,7 +173,7 @@ ggplot(diff_dd, aes(x=rsize, y=tsigma, fill=diff)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = "v3_psweep_diffdd.png", bg = "white", width=4, height=7)
+ggsave(filename = paste0("v3_psweep_diffdd_", cond, ".png"), bg = "white", width=4, height=7)
 ```
 
 

@@ -28,7 +28,7 @@ metadata$target = ytest$target
 ```
 
 ```{r, message=FALSE}
-conds <- c("auto", "allo", "poly")
+conds <- c("auto", "poly")
 
 y1_sims <- lapply(0:9, function(i) {
   do.call(rbind, lapply(conds, function(cond) {
@@ -52,8 +52,34 @@ y2 <- do.call(rbind, y2_sims)
 preds <- rbind(y1, y2) %>%
   cbind(metadata)
 
-preds$cond <- factor(preds$cond, levels = c("auto", "allo", "poly"))
+preds$cond <- factor(preds$cond, levels = c("auto", "poly"))
 ```
+
+# sample decision-making viz
+
+```{r}
+preds_sum <- preds %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  group_by(sim, cond, target, signal, timestep, node) %>%
+  summarise(ysum = sum(act), .groups = "drop") %>%
+  group_by(sim, cond, target, signal, node) %>%
+  mutate(ysum_cum = cumsum(ysum)) %>%
+  filter(sim==6, signal==176, cond=="poly") %>%
+  mutate(node = as.numeric(substr(node, 2,3)) + 1)
+
+ggplot(preds_sum %>% filter(timestep<=3), aes(x=node, y=ysum_cum)) +
+  facet_wrap(~timestep, ncol=3) +
+  geom_col(color="black") +
+  scale_x_continuous(breaks = c(1:9)) +
+  ylim(-5.2,5.2) +
+  labs(x="speaker class", y="sum activation") +
+  theme_bw() +
+  theme(strip.text = element_blank())
+
+ggsave(filename = "C:/Users/bruna/Desktop/GitHub/coupled-esns/speaker_figs/readout_all.png", bg = "white")
+```
+
+# model dynamics
 
 ```{r}
 preds_avg <- preds %>%
@@ -91,9 +117,17 @@ corr_traj <- preds %>%
 
 traj_plot <- rbind(corr_traj, incorr_traj) %>%
   mutate(label = case_when(
-    correct==1 ~ "0 (correct)",
-    correct==0 ~ as.character(rank)
+    correct==1 ~ "1 (correct)",
+    correct==0 ~ as.character(rank+1)
   ))
+
+# sum_traj <- traj_plot %>%
+#   group_by(cond, timestep) %>%
+#   summarise(sum = sum(m))
+
+sum_traj <- preds_avg %>%
+  group_by(cond, timestep) %>%
+  summarise(sum = sum(m), se = sd(m)/sqrt(n()))
 ```
 
 ```{r}
@@ -101,25 +135,180 @@ cols <- sequential_hcl(9, palette = "lajolla")
 cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
 cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
 
-ggplot(traj_plot %>% filter(cond != "allo"), aes(x=timestep, y=m, color=label, shape=label)) +
-  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "d_integr", "poly" = "d_intera"))) +
+ggplot(traj_plot, aes(x=timestep, y=m, color=label, shape=label)) +
+  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
+  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
+  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
+  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
   geom_line(color="black") +
-  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=0.5) +
-  geom_point(color="black", stroke=0.5) +
+  geom_point(color="black", size=3, stroke=1.5) +
+  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
+  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
   scale_color_manual(values=cols) +
   scale_fill_manual(values=cols) +
   scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
+  scale_y_continuous(limits = c(-1.7,3.5)) +
   labs(x = "timestep",
-       y = "act",
+       y = "activation",
        color = "runner-ups",
        fill = "runner-ups",
        shape = "runner-ups") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size=7),
-        axis.text.y = element_text(size=7))
+  theme_minimal() +
+  theme(legend.title = element_text(size=28),
+        legend.text = element_text(size=26),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28),
+        panel.grid.minor = element_blank())
 
-ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj.png")
+ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02.png", bg = "white", width=15, height=7)
 ```
+
+```{r}
+# figure staging:
+
+cols <- sequential_hcl(9, palette = "lajolla")
+cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
+cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
+
+ggplot(traj_plot, aes(x=timestep, y=m, color=label, shape=label)) +
+  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
+  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
+  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
+  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
+  # geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
+  # geom_line(color="black") +
+  # geom_point(color="black", size=3, stroke=1.5) +
+  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
+  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
+  scale_y_continuous(limits = c(-1.7,3.5)) +
+  labs(x = "timestep",
+       y = "activation",
+       color = "runner-ups",
+       fill = "runner-ups",
+       shape = "runner-ups") +
+  theme_minimal() +
+  theme(legend.title = element_text(size=28),
+        legend.text = element_text(size=26),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_BLANK.png", bg = "white", width=15, height=7)
+
+#####
+
+ggplot(traj_plot %>% filter(timestep<4), aes(x=timestep, y=m, color=label, shape=label)) +
+  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
+  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
+  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
+  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
+  geom_line(color="black") +
+  geom_point(color="black", size=3, stroke=1.5) +
+  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
+  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
+  scale_y_continuous(limits = c(-1.7,3.5)) +
+  labs(x = "timestep",
+       y = "activation",
+       color = "runner-ups",
+       fill = "runner-ups",
+       shape = "runner-ups") +
+  theme_minimal() +
+  theme(legend.title = element_text(size=28),
+        legend.text = element_text(size=26),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_PART1.png", bg = "white", width=15, height=7)
+
+#####
+
+ggplot(traj_plot %>% filter((cond=="poly" & timestep<4) | cond=="auto"), aes(x=timestep, y=m, color=label, shape=label)) +
+  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
+  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
+  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
+  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
+  geom_line(color="black") +
+  geom_point(color="black", size=3, stroke=1.5) +
+  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
+  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
+  scale_color_manual(values=cols) +
+  scale_fill_manual(values=cols) +
+  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
+  scale_y_continuous(limits = c(-1.7,3.5)) +
+  labs(x = "timestep",
+       y = "activation",
+       color = "runner-ups",
+       fill = "runner-ups",
+       shape = "runner-ups") +
+  theme_minimal() +
+  theme(legend.title = element_text(size=28),
+        legend.text = element_text(size=26),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_PART2.png", bg = "white", width=15, height=7)
+```
+
+# divergent growth
+
+```{r}
+div <- preds %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  mutate(t_act = case_when(as.numeric(substr(node,2,2))+1==target ~ 2.828427, T ~ -0.3535534),
+         sqre = (t_act - act)**2) %>%
+  group_by(sim, cond, timestep) %>%
+  summarise(rmse = sqrt(mean(sqre))) %>%
+  group_by(cond, timestep) %>%
+  summarise(m = mean(rmse), se = sd(rmse)/sqrt(n()))
+
+ggplot(div, aes(x=timestep, y=m, color=cond, fill=cond)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se), alpha=0.2, linetype=0) +
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
+  scale_color_discrete(labels = c(
+    auto = "integration w/ self-feedback",
+    poly = "integration w/ pooled-feedback"
+  )) +
+  scale_fill_discrete(labels = c(
+    auto = "integration w/ self-feedback",
+    poly = "integration w/ pooled-feedback"
+  )) +
+  labs(x = "timestep",
+       y = "rmse",
+       color = "condition",
+       fill = "condition") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        legend.title = element_blank())
+```
+
+
+
+
+
+
+
+
+
 
 
 # misc

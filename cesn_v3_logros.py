@@ -15,7 +15,7 @@ rng = np.random.default_rng(global_seed)
 
 rsize = [800, 800]      # reservoir size
 plink = [0.1, 0.1]      # input/fb connectivity
-tsigma = [0.2, 0.2]     # noise added to teacher forcing
+tsigma = [1.6, 1.6]     # noise added to teacher forcing
 
 reset_state = 'zero'    # reset reservoirs between signals
 runs = 10               # dyad simulations
@@ -23,7 +23,7 @@ runs = 10               # dyad simulations
 
 ### RUN ###
 
-base_path = f"data/v3/ro_800_01_02/predictions"
+base_path = f"data/v3/ro_800_01_16/predictions"
 results_list = []
 preds_list = []
 
@@ -36,13 +36,21 @@ for sim in range(runs):
     # sample data
     X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True)
 
+    # reverse order within signals
+    # X_train = [np.flip(signal, axis=0) for signal in X_train]
+    # X_test = [np.flip(signal, axis=0) for signal in X_test]
+
+    # shuffle order within signals
+    # X_train = [signal[np.random.permutation(len(signal))] for signal in X_train]
+    # X_test  = [signal[np.random.permutation(len(signal))] for signal in X_test]
+
     # train networks
     model = CesnModel_V3(nnodes=rsize, in_plink=plink, seed=r_seeds)
     model.train_r1(input=X_train, target=Y_train, teacherfb_sigma=tsigma[0])
     model.train_r2(input=X_train, target=Y_train, teacherfb_sigma=tsigma[1])
 
     # test networks
-    for cond in ["auto", "allo", "poly"]:     
+    for cond in ["auto", "poly"]:     
               
         results = model.test(input=X_test, target=Y_test, condition=cond, reset=reset_state)
         joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)

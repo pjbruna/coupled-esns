@@ -12,8 +12,8 @@ library(colorspace)
 
 # heterogeneous nets
 
-```{r}
-accuracies_raw <- read_csv("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=100_final.csv")
+```{r} 
+accuracies_raw <- read_csv("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=20_bxbr_final.csv")
 ```
 
 ```{r}
@@ -45,61 +45,104 @@ acc_ratio <- acc_cleaned %>%
   mutate(measure = case_when(measure=="dintegr_max" ~ "d_integr", measure=="dintera_max" ~ "d_intera"))
 
 acc_ratio$noise <- factor(acc_ratio$noise, levels = c("no noise", "unequal noise", "equal noise"))
-acc_ratio$measure <- factor(acc_ratio$measure, levels = c("d_integr", "d_intera"))
+acc_ratio$measure <- factor(acc_ratio$measure, levels = c("d_integr", "d_intera"), labels = c("integration w/ self-feedback", "integration w/ pooled-feedback"))
 ```
 
 ```{r}
-cols <- sequential_hcl(5, palette = "batlow")[3:1]
+# cols <- sequential_hcl(5, palette = "batlow")[3:1]
 
 for(n in (c(0.5, 1.0, 2.0))){
   ggplot(acc_ratio %>% filter(noise_1 %in% c(0.0, n), noise_2 %in% c(0.0, n)),
-         aes(x=min_max, y=dyad_max, color=noise, shape=noise)) +
-    facet_grid(measure~.) +
-    geom_point(alpha=0.8, size=2, stroke=1.1) +
-    geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
+         aes(x=min_max, y=dyad_max, shape=noise)) +
+    facet_wrap(~measure, ncol=2) +
+    annotate("rect", xmin = 0, xmax = 1, ymin = 1, ymax = 2, alpha = 0.2, fill = "darkgreen") +
+    annotate("rect", xmin = 0, xmax = 1, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
+    geom_point(alpha=1, size=3, stroke=2) +
+    # geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
     geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
     geom_hline(yintercept=1, linetype="dashed") +
-    scale_color_manual(values = cols) + 
+    # scale_color_manual(values = cols) + 
     scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
     xlim(0,1) +
-    ylim(0,1.75) +
+    ylim(0, 2.1) +
     labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
     theme_minimal() +
-    theme(legend.title = element_blank()) +
-    theme(axis.text = element_text(size=8),
-          axis.title = element_text(size=10),
-          strip.text = element_text(size=10))
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size=16),
+          axis.text = element_text(size=16),
+          axis.title = element_text(size=18),
+          strip.text = element_text(size=18),
+          panel.grid.minor = element_blank())
   
-  ggsave(filename = paste0("v3_ratios_nsigma=", n, ".png"), bg = "white", width=7, height=7)
+  ggsave(filename = paste0("v3_ratios_nsigma=", n, "_bxbr.png"), bg = "white", width=15, height=7)
+}
+```
+
+```{r}
+acc_ratio_ambient <- acc_ratio %>%
+  filter(noise_1 != 0.0, noise_2 != 0.0) %>%
+  mutate(noise = case_when(noise_1==0.5 & noise_2==0.5 ~ "no noise", T ~ noise),
+         noise = factor(noise,levels = c("no noise", "unequal noise", "equal noise")))
+  
+
+# cols <- sequential_hcl(5, palette = "batlow")[3:1]
+# cols <- diverging_hcl(5, palette = "berlin", l1=75, p2=5)[c(1,5)]
+
+for(n in (c(1.0, 2.0))){
+  ggplot(acc_ratio_ambient %>% filter(noise_1 %in% c(0.5, n), noise_2 %in% c(0.5, n)), 
+         aes(x=min_max, y=dyad_max, shape=noise)) +
+    facet_wrap(~measure, ncol=2) +
+    annotate("rect", xmin = 0, xmax = 1, ymin = 1, ymax = 2, alpha = 0.2, fill = "darkgreen") +
+    annotate("rect", xmin = 0, xmax = 1, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
+    geom_point(size=3, stroke=1.5) +
+    # geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
+    geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
+    # geom_hline(yintercept=1, linetype="dashed") +
+    geom_segment(aes(x=0, xend=1, y=1, yend=1), linetype="dashed", size=1) +
+    # scale_color_manual(values = cols) + 
+    scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+    xlim(0,1) +
+    ylim(0, 2.1) +
+    labs(x = expression(italic(P[min] / P[max])), y = expression(italic(P[dyad] / P[max]))) +
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size=26),
+          axis.text = element_text(size=26),
+          axis.title = element_text(size=28),
+          strip.text = element_text(size=28),
+          panel.grid.minor = element_blank(),
+          panel.spacing = unit(2, "lines"))
+  
+  ggsave(filename = paste0("v3_ratios_nsigma=", n, "_bxbr_ambient.png"), bg = "white", width=15, height=7)
   
 }
 ```
 
 ```{r}
-cols <- sequential_hcl(5, palette = "batlow")[3:1]
-
-for(n in (c(0.5, 1.0, 2.0))){
-  ggplot(acc_ratio %>% filter(noise_1 %in% c(0.0, n), noise_2 %in% c(0.0, n)),
-         aes(x=min_max, y=dyad_max, color=noise, shape=noise)) +
-    facet_grid(measure~.) +
-    geom_point(alpha=0.8, size=2, stroke=1.1) +
-    geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
-    geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
-    geom_hline(yintercept=1, linetype="dashed") +
-    scale_color_manual(values = cols) + 
-    scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
-    xlim(0,1) +
-    ylim(0.4,1.6) +
-    labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
-    theme_minimal() +
-    theme(legend.title = element_blank()) +
-    theme(axis.text = element_text(size=8),
-          axis.title = element_text(size=10),
-          strip.text = element_text(size=10))
-  
-  ggsave(filename = paste0("v3_ratios_nsigma=", n, "_restricted.png"), bg = "white", width=7, height=7)
-  
-}
+# cols <- sequential_hcl(5, palette = "batlow")[3:1]
+# 
+# for(n in (c(0.5, 1.0, 2.0))){
+#   ggplot(acc_ratio %>% filter(noise_1 %in% c(0.0, n), noise_2 %in% c(0.0, n)),
+#          aes(x=min_max, y=dyad_max, color=noise, shape=noise)) +
+#     facet_grid(measure~.) +
+#     geom_point(alpha=0.8, size=2, stroke=1.1) +
+#     geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
+#     geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
+#     geom_hline(yintercept=1, linetype="dashed") +
+#     scale_color_manual(values = cols) + 
+#     scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+#     xlim(0,1) +
+#     ylim(0.4,1.6) +
+#     labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
+#     theme_minimal() +
+#     theme(legend.title = element_blank()) +
+#     theme(axis.text = element_text(size=8),
+#           axis.title = element_text(size=10),
+#           strip.text = element_text(size=10))
+#   
+#   ggsave(filename = paste0("v3_ratios_nsigma=", n, "_restricted.png"), bg = "white", width=7, height=7)
+#   
+# }
 ```
 
 
@@ -107,7 +150,8 @@ for(n in (c(0.5, 1.0, 2.0))){
 cols <- diverging_hcl(5, palette = "broc")[c(4,5)]
 
 acc_ratio_summary <- acc_ratio %>%
-  filter(noise_1 %in% c(0.0, 2.0), noise_2 %in% c(0.0, 2.0)) %>%
+  filter(noise_1 %in% c(0.5, 2), noise_2 %in% c(0.5, 2)) %>%
+  mutate(noise = case_when(noise_1==noise_2 & noise_1==0.5 ~ "no noise", T ~ noise)) %>%
   group_by(noise, measure) %>%
   summarise(m = mean(dyad_max), se = sd(dyad_max)/sqrt(n()), .groups = "drop")
 

@@ -22,7 +22,7 @@ def check_isolation(tag, log_path, rng): # confirm independence of parallel proc
         f.write(f"[{tag}] PID={os.getpid()} random_val={val:.6f} \n")
 
 
-def run_simulations(runs, rsize, plink, tsigma, rconn, rng): # runs N simulations given (r,p,t)
+def run_simulations(runs, rsize, plink, tsigma, rng): # runs N simulations given (r,p,t) # rconn
     rsize = [int(r) for r in rsize]
     results_list = []
 
@@ -32,12 +32,12 @@ def run_simulations(runs, rsize, plink, tsigma, rconn, rng): # runs N simulation
 
         X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True, do_print=False)
 
-        model = CesnModel_V3(nnodes=rsize, in_plink=plink, rc_plink=rconn, seed=r_seeds)
+        model = CesnModel_V3(nnodes=rsize, in_plink=plink, seed=r_seeds) # rc_plink=rconn
         model.train_r1(input=X_train, target=Y_train, teacherfb_sigma=tsigma[0])
         model.train_r2(input=X_train, target=Y_train, teacherfb_sigma=tsigma[1])
 
-        for cond in ["auto", "allo", "poly"]:   
-            results = model.test(input=X_test, target=Y_test, condition=cond)
+        for cond in ["auto", "poly"]:   
+            results = model.test(input=X_test, target=Y_test, condition=cond, input_sigma=[2.0, 2.0])
             joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
             results_list.append({
@@ -69,8 +69,8 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
         print("-" * 45)
 
         accuracies_list = []
-        for rsize, plink, tsigma, rconn in batch:
-            results = run_simulations(runs, rsize, plink, tsigma, rconn, rng)
+        for rsize, plink, tsigma in batch: # rconn
+            results = run_simulations(runs, rsize, plink, tsigma, rng) # rconn
 
             # calculate mean and standard error per condition/measure
             tempdf = pd.DataFrame(results)
@@ -92,11 +92,11 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
             summary["rsize_1"] = rsize[0]
             summary["plink_1"] = plink[0]
             summary["tsigma_1"] = tsigma[0]
-            summary["rconn_1"] = rconn[0]
+            # summary["rconn_1"] = rconn[0]
             summary["rsize_2"] = rsize[1]
             summary["plink_2"] = plink[1]
             summary["tsigma_2"] = tsigma[1]
-            summary["rconn_2"] = rconn[1]
+            # summary["rconn_2"] = rconn[1]
 
             # log outcomes
             accuracies_list.extend(summary.to_dict(orient="records"))
@@ -107,7 +107,7 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
             print(f"rsize: ({rsize[0]:<6}, {rsize[1]:<6}) | "
                   f"plink: ({plink[0]:<5}, {plink[1]:<5}) | "
                   f"tsigma: ({tsigma[0]:<5}, {tsigma[1]:<5}) | "
-                  f"rconn: ({rconn[0]:<5}, {rconn[1]:<5}) | "
+                  # f"rconn: ({rconn[0]:<5}, {rconn[1]:<5}) | "
                   f"pcorrect: {print_m:<5} | "
                   f"se: {print_se:<5}")
 
@@ -149,14 +149,14 @@ if __name__ == "__main__":
     rsize_range =   [50, 100, 200, 400, 800, 1600]      # reservoir size
     plink_range =   [0.1, 0.3, 0.5]                     # input/fb connectivity
     tsigma_range =  [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]      # noise added to teacher forcing
-    rconn_range =   [0.1]                               # reservoir internal connectivity
+    # rconn_range =   [0.1, 0.3, 0.5]                     # reservoir internal connectivity
 
     print(f"Global seed: {global_seed}")
     print(f"{runs} simulations per (r,p,t,c)")
 
     # create parameter combinations
-    R, P, T, C = np.meshgrid(rsize_range, plink_range, tsigma_range, rconn_range, indexing='ij')
-    param_combs = np.column_stack([R.ravel(), P.ravel(), T.ravel(), C.ravel()])
+    R, P, T = np.meshgrid(rsize_range, plink_range, tsigma_range, indexing='ij') # rconn_range
+    param_combs = np.column_stack([R.ravel(), P.ravel(), T.ravel()]) # C.ravel()
 
     # shuffle for mixed-heads analysis
     shuffled_param_combs = param_combs.copy()
