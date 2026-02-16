@@ -1,5 +1,5 @@
 ---
-title: "decision trajectories"
+title: "decision dynamics"
 output: html_document
 date: "2025-11-02"
 ---
@@ -9,53 +9,261 @@ date: "2025-11-02"
 library(tidyverse)
 library(colorspace)
 library(patchwork)
+library(lmerTest)
 ```
 
-```{r}
-base_path <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
-```
 
-```{r}
-signal_ids <- read.csv(paste0(base_path, "predictions_signal_ids.csv"))
-ytest <- read.csv(paste0(base_path, "predictions_ytest.csv"))
-ytest$target <- apply(ytest, 1, which.max)
-
-metadata <- signal_ids %>%
-  group_by(signal) %>%
-  mutate(timestep = row_number())
-
-metadata$target = ytest$target
-```
+# load data
 
 ```{r, message=FALSE}
-conds <- c("auto", "poly")
+process_trajdata <- function(base_path, tsigma){
+  signal_ids <- read.csv(paste0(base_path, "predictions_signal_ids.csv"))
+  ytest <- read.csv(paste0(base_path, "predictions_ytest.csv"))
+  ytest$target <- apply(ytest, 1, which.max)
+  
+  metadata <- signal_ids %>%
+    group_by(signal) %>%
+    mutate(timestep = row_number())
+  
+  metadata$target = ytest$target
+  
+  conds <- c("auto", "poly")
+  
+  y1_sims <- lapply(0:9, function(i) {
+    do.call(rbind, lapply(conds, function(cond) {
+      read_csv(paste0(base_path, "predictions_y1_sim=", i, "_cond=", cond, ".csv")) %>%
+        mutate(sim = i, model = "y1", cond = cond)
+    }))
+  })
+  
+  y2_sims <- lapply(0:9, function(i) {
+    do.call(rbind, lapply(conds, function(cond) {
+      read_csv(paste0(base_path, "predictions_y2_sim=", i, "_cond=", cond, ".csv")) %>%
+        mutate(sim = i, model = "y2", cond = cond)
+    }))
+  })
+  
+  y1 <- do.call(rbind, y1_sims)
+  y2 <- do.call(rbind, y2_sims)
+  
+  preds <- rbind(y1, y2) %>%
+    cbind(metadata)
+  
+  preds$cond <- factor(preds$cond, levels = c("auto", "poly"))
+  
+  preds_avg <- preds %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    group_by(cond, target, timestep, node) %>%
+    summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
+  
+  node_rank <- preds_avg %>%
+    group_by(cond, target, node) %>%
+    arrange(timestep) %>%
+    mutate(cumm = cumsum(m),
+           correct = case_when(as.numeric(substr(node,2,2))+1==target ~ 1, T ~ 0)) %>%
+    filter(timestep==10, correct==0) %>%
+    select(cond, target, node, cumm) %>%
+    group_by(cond, target) %>%
+    arrange(desc(cumm), .by_group = T) %>%
+    mutate(rank = row_number()) %>%
+    select(!cumm)
+  
+  incorr_traj <- preds %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    full_join(node_rank) %>%
+    drop_na() %>%
+    group_by(cond, timestep, rank) %>%
+    summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
+    mutate(correct=0)
+  
+  corr_traj <- preds %>%
+    pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+    mutate(correct = case_when(as.numeric(substr(node,2,2))+1==target ~ 1, T ~ 0)) %>%
+    filter(correct==1) %>%
+    group_by(cond, timestep) %>%
+    summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
+    mutate(rank=0, correct=1)
+  
+  traj_plot <- rbind(corr_traj, incorr_traj) %>%
+    mutate(traj = case_when(correct==1 ~ "target", correct==0 ~ as.character(rank)),
+           traj = factor(traj, levels = c("target", c(1:8))),
+           tsigma=tsigma)
+  
+  return(traj_plot)
+}
+```
 
-y1_sims <- lapply(0:9, function(i) {
-  do.call(rbind, lapply(conds, function(cond) {
-    read_csv(paste0(base_path, "predictions_y1_sim=", i, "_cond=", cond, ".csv")) %>%
-      mutate(sim = i, model = "y1", cond = cond)
-  }))
-})
+```{r, message=F}
+process_trajdata_raw <- function(base_path, tsigma){
+  signal_ids <- read.csv(paste0(base_path, "predictions_signal_ids.csv"))
+  ytest <- read.csv(paste0(base_path, "predictions_ytest.csv"))
+  ytest$target <- apply(ytest, 1, which.max)
+    
+  metadata <- signal_ids %>%
+    group_by(signal) %>%
+    mutate(timestep = row_number())
+    
+  metadata$target = ytest$target
+    
+  conds <- c("auto", "poly")
+    
+  y1_sims <- lapply(0:9, function(i) {
+    do.call(rbind, lapply(conds, function(cond) {
+      read_csv(paste0(base_path, "predictions_y1_sim=", i, "_cond=", cond, ".csv")) %>%
+        mutate(sim = i, model = "y1", cond = cond)
+    }))
+  })
+    
+  y2_sims <- lapply(0:9, function(i) {
+    do.call(rbind, lapply(conds, function(cond) {
+      read_csv(paste0(base_path, "predictions_y2_sim=", i, "_cond=", cond, ".csv")) %>%
+        mutate(sim = i, model = "y2", cond = cond)
+    }))
+  })
+    
+  y1 <- do.call(rbind, y1_sims) %>%
+    mutate(sim = sim+1) %>%
+    select(!model)
+  
+  y2 <- do.call(rbind, y2_sims) %>%
+    mutate(sim = sim+11) %>%
+    select(!model)
+    
+  preds <- rbind(y1, y2) %>%
+    cbind(metadata) %>%
+    mutate(tsigma = tsigma)
+    
+  preds$cond <- factor(preds$cond, levels = c("auto", "poly"))
+  
+  return(preds)
+}
+```
 
-y2_sims <- lapply(0:9, function(i) {
-  do.call(rbind, lapply(conds, function(cond) {
-    read_csv(paste0(base_path, "predictions_y2_sim=", i, "_cond=", cond, ".csv")) %>%
-      mutate(sim = i, model = "y2", cond = cond)
-  }))
-})
 
-y1 <- do.call(rbind, y1_sims)
-y2 <- do.call(rbind, y2_sims)
+# readout dynamics
+
+```{r, message=FALSE}
+path1 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
+path2 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_16/"
+
+traj1 <- process_trajdata(path1, "0.2")
+traj2 <- process_trajdata(path2, "1.6")
+
+traj_plot <- rbind(traj1, traj2)
 ```
 
 ```{r}
-preds <- rbind(y1, y2) %>%
-  cbind(metadata)
+traj_plot$tsigma <- factor(traj_plot$tsigma, levels = c("0.2", "1.6"), labels = c("sigma[teacher]==0.2", "sigma[teacher]==1.6"))
 
-preds$cond <- factor(preds$cond, levels = c("auto", "poly"))
+traj_plot$cond <- factor(traj_plot$cond, levels = c("auto", "poly"), labels = c("no coupling,\nself-feedback", "coupling via\npooled-feedback"))
+
+cols <- sequential_hcl(5, palette="redyellow")[c(1,3)]
+
+ggplot(traj_plot, aes(x=timestep, y=m, shape=factor(correct, levels = c("1","0")), color=factor(correct, levels = c("1","0")), fill=factor(correct, levels = c("1","0")), group = traj)) +
+  facet_grid(tsigma~cond, labeller = labeller(cond = label_value,
+                                              tsigma = label_parsed
+                                              )) +
+  geom_ribbon(aes(ymin=m-se, ymax=m+se), alpha=0.2, linetype=0) +
+  geom_line() +
+  geom_point(stroke=1, size=3.5) +
+  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), color="black", size=1.5, linetype="dashed") +
+  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), color="black", size=1.5, linetype="dashed") +
+  scale_shape_manual(values=c(1,4), labels=c("target", "competitors")) +
+  scale_color_manual(values=c(cols[1], cols[2]), labels=c("target", "competitors")) +
+  scale_fill_manual(values=c(cols[1], cols[2]), labels=c("target", "competitors")) +
+  scale_x_continuous(breaks = c(2,4,6,8,10)) +
+  scale_y_continuous(limits = c(-1.7,3.5)) +
+  labs(x = "time step",
+       y = "activation",
+       shape = "trajectory",
+       color="trajectory",
+       fill="trajectory") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=26),
+        legend.position = "bottom",
+        legend.key.spacing = unit(1.5, 'cm'),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28),
+        panel.grid.minor = element_blank())
+
+# ggsave(filename = "manuscript_figs/dynamics_v2.png", bg = "white", width=10, height=10)
 ```
 
-# sample decision-making viz
+
+# dispersion
+
+```{r, message=FALSE}
+path1 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
+path2 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_16/"
+
+rawtraj1 <- process_trajdata_raw(path1, "0.2")
+rawtraj2 <- process_trajdata_raw(path2, "1.6")
+
+traj_raw <- rbind(rawtraj1, rawtraj2)
+
+disp_df <- traj_raw %>%
+  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
+  select(!target) %>%
+  group_by(cond, tsigma, sim, signal, node) %>%
+  arrange(timestep, .by_group = TRUE) %>%
+  mutate(delta_act = abs(act - lag(act))) %>%
+  ungroup() %>%
+  filter(timestep != 1)
+```
+
+```{r}
+disp_plot <- disp_df %>%
+  group_by(cond, tsigma, timestep) %>%
+  summarise(m = mean(delta_act), se = sd(delta_act)/sqrt(n())) %>%
+  mutate(cond = factor(cond, levels = c("auto", "poly"),
+                       labels = c("no coupling, self-feedback", "coupling via pooled-feedback")),
+         tsigma = factor(tsigma, levels = "0.2", "1.6"))
+
+ggplot(disp_plot, aes(x=timestep, y=m, color=tsigma, fill=tsigma, linetype=cond)) +
+  geom_line() +
+  geom_ribbon(aes(x=timestep, ymin = m-se, ymax=m+se, fill=tsigma, group=interaction(cond, tsigma)),
+              alpha = 0.2, linetype=0, inherit.aes = F) +
+  scale_linetype_manual(values = c("solid", "dashed")) +
+  scale_color_discrete(labels = c(expression(italic(sigma[teacher] == 0.2)),
+                                  expression(italic(sigma[teacher] == 1.6)))) +
+  scale_fill_discrete(labels = c(expression(italic(sigma[teacher] == 0.2)),
+                                 expression(italic(sigma[teacher] == 1.6)))) +
+  labs(x = "time step", y = expression(italic(Delta[act]))) +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=20),
+        legend.position = c(0.3, 0.7),
+        axis.text = element_text(size=20),
+        axis.title = element_text(size=22),
+        strip.text = element_text(size=22),
+        panel.grid.minor = element_blank()) +
+  guides(linetype = guide_legend(order = 1))
+
+# ggsave(filename = "manuscript_figs/dynamics_delta.png", bg = "white", width=9, height=3)
+```
+
+## stats
+
+```{r}
+avg_disp <- disp_df %>%
+  group_by(cond, tsigma, signal, node, timestep) %>%
+  summarise(m_delta = mean(delta_act), se_delta = sd(delta_act)/sqrt(n()))
+
+summary(lmer(m_delta ~ cond*timestep + (1|node) + (1|signal), data = avg_disp %>% filter(tsigma=="0.2")))
+
+summary(lmer(m_delta ~ cond*timestep + (1|node) + (1|signal), data = avg_disp %>% filter(tsigma=="1.6")))
+```
+
+```{r}
+summary(lmer(m_delta ~ cond + (1|node) + (1|signal) + (1|timestep), data = avg_disp %>% filter(tsigma=="0.2")))
+
+summary(lmer(m_delta ~ cond + (1|node) + (1|signal) + (1|timestep), data = avg_disp %>% filter(tsigma=="1.6")))
+```
+
+
+# sample decision
 
 ```{r}
 preds_sum <- preds %>%
@@ -76,478 +284,6 @@ ggplot(preds_sum %>% filter(timestep<=3), aes(x=node, y=ysum_cum)) +
   theme_bw() +
   theme(strip.text = element_blank())
 
-ggsave(filename = "C:/Users/bruna/Desktop/GitHub/coupled-esns/speaker_figs/readout_all.png", bg = "white")
+# ggsave(filename = "C:/Users/bruna/Desktop/GitHub/coupled-esns/speaker_figs/readout_all.png", bg = "white")
 ```
 
-# model dynamics
-
-```{r}
-preds_avg <- preds %>%
-  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-  group_by(cond, target, timestep, node) %>%
-  summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
-
-node_rank <- preds_avg %>%
-  group_by(cond, target, node) %>%
-  arrange(timestep) %>%
-  mutate(cumm = cumsum(m),
-         correct = case_when(as.numeric(substr(node,2,2))+1==target ~ 1, T ~ 0)) %>%
-  filter(timestep==10, correct==0) %>%
-  select(cond, target, node, cumm) %>%
-  group_by(cond, target) %>%
-  arrange(desc(cumm), .by_group = T) %>%
-  mutate(rank = row_number()) %>%
-  select(!cumm)
-
-incorr_traj <- preds %>%
-  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-  full_join(node_rank) %>%
-  drop_na() %>%
-  group_by(cond, timestep, rank) %>%
-  summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
-  mutate(correct=0)
-
-corr_traj <- preds %>%
-  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-  mutate(correct = case_when(as.numeric(substr(node,2,2))+1==target ~ 1, T ~ 0)) %>%
-  filter(correct==1) %>%
-  group_by(cond, timestep) %>%
-  summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
-  mutate(rank=0, correct=1)
-
-traj_plot <- rbind(corr_traj, incorr_traj) %>%
-  mutate(label = case_when(
-    correct==1 ~ "1 (correct)",
-    correct==0 ~ as.character(rank+1)
-  ))
-
-# sum_traj <- traj_plot %>%
-#   group_by(cond, timestep) %>%
-#   summarise(sum = sum(m))
-
-sum_traj <- preds_avg %>%
-  group_by(cond, timestep) %>%
-  summarise(sum = sum(m), se = sd(m)/sqrt(n()))
-```
-
-```{r}
-cols <- sequential_hcl(9, palette = "lajolla")
-cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-
-ggplot(traj_plot, aes(x=timestep, y=m, color=label, shape=label)) +
-  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
-  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
-  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
-  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
-  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
-  geom_line(color="black") +
-  geom_point(color="black", size=3, stroke=1.5) +
-  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
-  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
-  scale_color_manual(values=cols) +
-  scale_fill_manual(values=cols) +
-  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
-  scale_y_continuous(limits = c(-1.7,3.5)) +
-  labs(x = "timestep",
-       y = "activation",
-       color = "runner-ups",
-       fill = "runner-ups",
-       shape = "runner-ups") +
-  theme_minimal() +
-  theme(legend.title = element_text(size=28),
-        legend.text = element_text(size=26),
-        axis.text = element_text(size=26),
-        axis.title = element_text(size=28),
-        strip.text = element_text(size=28),
-        panel.grid.minor = element_blank())
-
-ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02.png", bg = "white", width=15, height=7)
-```
-
-```{r}
-# figure staging:
-
-cols <- sequential_hcl(9, palette = "lajolla")
-cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-
-ggplot(traj_plot, aes(x=timestep, y=m, color=label, shape=label)) +
-  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
-  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
-  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
-  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
-  # geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
-  # geom_line(color="black") +
-  # geom_point(color="black", size=3, stroke=1.5) +
-  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
-  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
-  scale_color_manual(values=cols) +
-  scale_fill_manual(values=cols) +
-  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
-  scale_y_continuous(limits = c(-1.7,3.5)) +
-  labs(x = "timestep",
-       y = "activation",
-       color = "runner-ups",
-       fill = "runner-ups",
-       shape = "runner-ups") +
-  theme_minimal() +
-  theme(legend.title = element_text(size=28),
-        legend.text = element_text(size=26),
-        axis.text = element_text(size=26),
-        axis.title = element_text(size=28),
-        strip.text = element_text(size=28),
-        panel.grid.minor = element_blank())
-
-ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_BLANK.png", bg = "white", width=15, height=7)
-
-#####
-
-ggplot(traj_plot %>% filter(timestep<4), aes(x=timestep, y=m, color=label, shape=label)) +
-  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
-  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
-  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
-  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
-  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
-  geom_line(color="black") +
-  geom_point(color="black", size=3, stroke=1.5) +
-  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
-  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
-  scale_color_manual(values=cols) +
-  scale_fill_manual(values=cols) +
-  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
-  scale_y_continuous(limits = c(-1.7,3.5)) +
-  labs(x = "timestep",
-       y = "activation",
-       color = "runner-ups",
-       fill = "runner-ups",
-       shape = "runner-ups") +
-  theme_minimal() +
-  theme(legend.title = element_text(size=28),
-        legend.text = element_text(size=26),
-        axis.text = element_text(size=26),
-        axis.title = element_text(size=28),
-        strip.text = element_text(size=28),
-        panel.grid.minor = element_blank())
-
-ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_PART1.png", bg = "white", width=15, height=7)
-
-#####
-
-ggplot(traj_plot %>% filter((cond=="poly" & timestep<4) | cond=="auto"), aes(x=timestep, y=m, color=label, shape=label)) +
-  facet_wrap(~cond, labeller = labeller(cond = c("auto" = "integration w/ self-feedback", "poly" = "integration w/ pooled-feedback"))) +
-  # geom_line(data = sum_traj, aes(x=timestep, y=sum), color="black", size=0.3, inherit.aes = F) +
-  # geom_ribbon(data = sum_traj, aes(x=timestep, ymin=sum-se, ymax=sum+se), color="black", alpha=0.3, size=0.3, inherit.aes = F) +
-  # geom_point(data = sum_traj, aes(x=timestep, y=sum), shape=5, color="black", stroke=0.5, inherit.aes = F) +
-  geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=label), alpha=1) +
-  geom_line(color="black") +
-  geom_point(color="black", size=3, stroke=1.5) +
-  geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), linetype="dashed", size=1) +
-  geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), linetype="dashed", size=1) +
-  scale_color_manual(values=cols) +
-  scale_fill_manual(values=cols) +
-  scale_shape_manual(values=c(1,4,4,4,4,4,4,4,4)) +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
-  scale_y_continuous(limits = c(-1.7,3.5)) +
-  labs(x = "timestep",
-       y = "activation",
-       color = "runner-ups",
-       fill = "runner-ups",
-       shape = "runner-ups") +
-  theme_minimal() +
-  theme(legend.title = element_text(size=28),
-        legend.text = element_text(size=26),
-        axis.text = element_text(size=26),
-        axis.title = element_text(size=28),
-        strip.text = element_text(size=28),
-        panel.grid.minor = element_blank())
-
-ggsave(filename = "v3_rotraj_800_01_02/overall_rotraj_800_01_02_PART2.png", bg = "white", width=15, height=7)
-```
-
-# divergent growth
-
-```{r}
-div <- preds %>%
-  pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-  mutate(t_act = case_when(as.numeric(substr(node,2,2))+1==target ~ 2.828427, T ~ -0.3535534),
-         sqre = (t_act - act)**2) %>%
-  group_by(sim, cond, timestep) %>%
-  summarise(rmse = sqrt(mean(sqre))) %>%
-  group_by(cond, timestep) %>%
-  summarise(m = mean(rmse), se = sd(rmse)/sqrt(n()))
-
-ggplot(div, aes(x=timestep, y=m, color=cond, fill=cond)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=m-se, ymax=m+se), alpha=0.2, linetype=0) +
-  scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10)) +
-  scale_color_discrete(labels = c(
-    auto = "integration w/ self-feedback",
-    poly = "integration w/ pooled-feedback"
-  )) +
-  scale_fill_discrete(labels = c(
-    auto = "integration w/ self-feedback",
-    poly = "integration w/ pooled-feedback"
-  )) +
-  labs(x = "timestep",
-       y = "rmse",
-       color = "condition",
-       fill = "condition") +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank(),
-        legend.title = element_blank())
-```
-
-
-
-
-
-
-
-
-
-
-
-# misc
-
-```{r}
-# cols <- sequential_hcl(9, palette = "lajolla")
-# cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-# cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-# 
-# for(targ in c(1:9)){
-#   decision_timeseries_all <- preds %>%
-#     filter(target == targ) %>%
-#     pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#     group_by(model, cond, signal, node, sim) %>%
-#     arrange(timestep) %>%
-#     mutate(cum_act = cumsum(act)) %>%
-#     group_by(model, cond, signal, timestep, node) %>%
-#     summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop")
-#   
-#   p1 <- ggplot(decision_timeseries_all %>% filter(model == "y1"), aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("(y1) speaker_", targ),
-#          x = "timestep",
-#          y = "cum(act)",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   
-#   p2 <- ggplot(decision_timeseries_all %>% filter(model == "y2"), aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("(y2) speaker_", targ),
-#          x = "timestep",
-#          y = "cum(act)",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   p1 / p2
-#   
-#   ggsave(filename = paste0("v3_rotraj_800_01_02/rotraj_", targ, ".png"), width = 25, height = 10) 
-# }
-```
-
-```{r}
-# preds_joint <- preds %>%
-#   pivot_longer(cols = colnames(preds[,1:9]), names_to = "node", values_to = "act") %>%
-#   pivot_wider(names_from = model, values_from = act) %>%
-#   group_by(sim, cond, signal, timestep, node) %>%
-#   mutate(yjoint = sum(y1, y2)) %>%
-#   pivot_longer(cols = c("y1", "y2", "yjoint"), names_to = "model", values_to = "act") %>%
-#   pivot_wider(names_from = node, values_from = act) %>%
-#   filter(model == "yjoint")
-```
-
-```{r}
-# cols <- sequential_hcl(9, palette = "lajolla")
-# cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-# cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-# 
-# for(targ in c(1:9)){
-#   decision_timeseries_all <- preds_joint %>%
-#     filter(target == targ) %>%
-#     pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#     group_by(cond, signal, node, sim) %>%
-#     arrange(timestep) %>%
-#     mutate(cum_act = cumsum(act)) %>%
-#     group_by(cond, signal, timestep, node) %>%
-#     summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop")
-#   
-#   ggplot(decision_timeseries_all, aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("speaker_", targ),
-#          x = "timestep",
-#          y = "cum(act)",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   ggsave(filename = paste0("v3_rotraj_800_01_02/dyad_rotraj_", targ, ".png"), width = 25, height = 4.5) 
-# }
-```
-
-```{r}
-# avg_preds <- preds_joint %>%
-#   pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#   group_by(cond, signal, node, sim) %>%
-#   arrange(timestep) %>%
-#   mutate(cum_act = cumsum(act)) %>%
-#   group_by(cond, target, timestep, node) %>%
-#   summarise(m = mean(cum_act), se = sd(cum_act)/sqrt(n()), .groups = "drop") %>%
-#   mutate(target = paste0("target_", target))
-#   
-# ggplot(avg_preds, aes(x=timestep, y=m, color=node)) +
-#   facet_grid(target~cond) +
-#   geom_line() +
-#   geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#   scale_color_manual(values=cols) +
-#   scale_fill_manual(values=cols) +
-#   labs(x = "timestep",
-#        y = "cum(act)",
-#        color = "readout",
-#        fill = "readout") +
-#   theme_bw() +
-#   theme(axis.text.x = element_text(size=7),
-#         axis.text.y = element_text(size=7))
-# 
-# ggsave(filename = paste0("v3_rotraj_800_01_02/avg_dyad_rotraj.png"), height = 15, width = 7) 
-```
-
-```{r}
-# cols <- sequential_hcl(9, palette = "lajolla")
-# cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-# cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-# 
-# for(targ in c(1:9)){
-#   decision_timeseries_all <- preds %>%
-#     filter(target == targ) %>%
-#     pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#     group_by(model, cond, signal, timestep, node) %>%
-#     summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
-#   
-#   p1 <- ggplot(decision_timeseries_all %>% filter(model == "y1"), aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("(y1) speaker_", targ),
-#          x = "timestep",
-#          y = "act",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   
-#   p2 <- ggplot(decision_timeseries_all %>% filter(model == "y2"), aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("(y2) speaker_", targ),
-#          x = "timestep",
-#          y = "act",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   p1 / p2
-#   
-#   ggsave(filename = paste0("v3_rotraj_800_01_02/raw/rotraj_", targ, ".png"), width = 25, height = 10) 
-# }
-```
-
-```{r}
-# preds_joint <- preds %>%
-#   pivot_longer(cols = colnames(preds[,1:9]), names_to = "node", values_to = "act") %>%
-#   pivot_wider(names_from = model, values_from = act) %>%
-#   group_by(sim, cond, signal, timestep, node) %>%
-#   mutate(yjoint = sum(y1, y2)) %>%
-#   pivot_longer(cols = c("y1", "y2", "yjoint"), names_to = "model", values_to = "act") %>%
-#   pivot_wider(names_from = node, values_from = act) %>%
-#   filter(model == "yjoint")
-```
-
-```{r}
-# cols <- sequential_hcl(9, palette = "lajolla")
-# cols[c(1)] <- darken(cols[c(1)], amount = 0.2)
-# cols[c(2)] <- darken(cols[c(2)], amount = 0.1)
-# 
-# for(targ in c(1:9)){
-#   decision_timeseries_all <- preds_joint %>%
-#     filter(target == targ) %>%
-#     pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#     group_by(cond, signal, timestep, node) %>%
-#     summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop")
-#   
-#   ggplot(decision_timeseries_all, aes(x=timestep, y=m, color=node)) +
-#     facet_grid(cond~signal) +
-#     geom_line() +
-#     geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#     scale_color_manual(values=cols) +
-#     scale_fill_manual(values=cols) +
-#     labs(title = paste0("speaker_", targ),
-#          x = "timestep",
-#          y = "act",
-#          color = "readout",
-#          fill = "readout") +
-#     theme_bw() +
-#     theme(axis.text.x = element_text(size=7),
-#           axis.text.y = element_text(size=7))
-#   
-#   ggsave(filename = paste0("v3_rotraj_800_01_02/raw/dyad_rotraj_", targ, ".png"), width = 25, height = 4.5) 
-# }
-```
-
-```{r}
-# avg_preds <- preds_joint %>%
-#   pivot_longer(cols = starts_with("X"), names_to = "node", values_to = "act") %>%
-#   group_by(cond, target, timestep, node) %>%
-#   summarise(m = mean(act), se = sd(act)/sqrt(n()), .groups = "drop") %>%
-#   mutate(target = paste0("target_", target))
-#   
-# ggplot(avg_preds, aes(x=timestep, y=m, color=node)) +
-#   facet_grid(target~cond) +
-#   geom_line() +
-#   geom_ribbon(aes(ymin=m-se, ymax=m+se, fill=node), alpha=0.5) +
-#   scale_color_manual(values=cols) +
-#   scale_fill_manual(values=cols) +
-#   labs(x = "timestep",
-#        y = "act",
-#        color = "readout",
-#        fill = "readout") +
-#   theme_bw() +
-#   theme(axis.text.x = element_text(size=7),
-#         axis.text.y = element_text(size=7))
-# 
-# ggsave(filename = paste0("v3_rotraj_800_01_02/raw/avg_dyad_rotraj.png"), height = 15, width = 7) 
-```

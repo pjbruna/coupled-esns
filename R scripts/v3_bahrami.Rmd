@@ -1,5 +1,5 @@
 ---
-title: "performance analyses"
+title: "ratio plots"
 output: html_document
 date: "2025-11-02"
 ---
@@ -8,12 +8,17 @@ date: "2025-11-02"
 library(tidyverse)
 library(ggpubr)
 library(colorspace)
+library(lmerTest)
+library(emmeans)
 ```
 
-# heterogeneous nets
+
+# ratios
 
 ```{r} 
-accuracies_raw <- read_csv("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=20_bxbr_final.csv")
+key <- "bxbr"
+
+accuracies_raw <- read_csv(paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=20_", key, "_final.csv"))
 ```
 
 ```{r}
@@ -38,143 +43,152 @@ acc_ratio <- acc_cleaned %>%
   mutate(min_max = min / max,
          dintegr_max = d_integr / max,
          dintera_max = d_intera / max,
-         noise = case_when(noise_1==0.0 & noise_2==0.0 ~ "no noise", noise_1==noise_2 ~ "equal noise", T ~ "unequal noise")) %>%
+         noise = case_when(noise_1==0.0 & noise_2==0.0 ~ "no noise",
+                           noise_1==noise_2 ~ "equal noise",
+                           T ~ "unequal noise")) %>%
   ungroup() %>%
   select(noise_1, noise_2, noise, min_max, dintegr_max, dintera_max) %>%
   pivot_longer(cols = !c(noise_1, noise_2, noise, min_max), names_to = "measure", values_to = "dyad_max") %>%
   mutate(measure = case_when(measure=="dintegr_max" ~ "d_integr", measure=="dintera_max" ~ "d_intera"))
 
 acc_ratio$noise <- factor(acc_ratio$noise, levels = c("no noise", "unequal noise", "equal noise"))
-acc_ratio$measure <- factor(acc_ratio$measure, levels = c("d_integr", "d_intera"), labels = c("integration w/ self-feedback", "integration w/ pooled-feedback"))
+acc_ratio$measure <- factor(acc_ratio$measure, levels = c("d_integr", "d_intera"), labels = c("self-feedback", "pooled-feedback"))
 ```
 
 ```{r}
-# cols <- sequential_hcl(5, palette = "batlow")[3:1]
+# prep data
 
-for(n in (c(0.5, 1.0, 2.0))){
-  ggplot(acc_ratio %>% filter(noise_1 %in% c(0.0, n), noise_2 %in% c(0.0, n)),
-         aes(x=min_max, y=dyad_max, shape=noise)) +
-    facet_wrap(~measure, ncol=2) +
-    annotate("rect", xmin = 0, xmax = 1, ymin = 1, ymax = 2, alpha = 0.2, fill = "darkgreen") +
-    annotate("rect", xmin = 0, xmax = 1, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
-    geom_point(alpha=1, size=3, stroke=2) +
-    # geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
-    geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
-    geom_hline(yintercept=1, linetype="dashed") +
-    # scale_color_manual(values = cols) + 
-    scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
-    xlim(0,1) +
-    ylim(0, 2.1) +
-    labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
-    theme_minimal() +
-    theme(legend.title = element_blank(),
-          legend.text = element_text(size=16),
-          axis.text = element_text(size=16),
-          axis.title = element_text(size=18),
-          strip.text = element_text(size=18),
-          panel.grid.minor = element_blank())
-  
-  ggsave(filename = paste0("v3_ratios_nsigma=", n, "_bxbr.png"), bg = "white", width=15, height=7)
-}
-```
+sigma_ambient <- 0.5
+sigma_input <- 2
 
-```{r}
 acc_ratio_ambient <- acc_ratio %>%
-  filter(noise_1 != 0.0, noise_2 != 0.0) %>%
-  mutate(noise = case_when(noise_1==0.5 & noise_2==0.5 ~ "no noise", T ~ noise),
-         noise = factor(noise,levels = c("no noise", "unequal noise", "equal noise")))
+  filter(noise_1 %in% c(sigma_ambient, sigma_input), noise_2 %in% c(sigma_ambient, sigma_input)) %>%
+  mutate(noise = case_when(noise_1==sigma_ambient & noise_2==sigma_ambient ~ "no noise",
+                           T ~ noise),
+         noise = factor(noise, levels = c("no noise", "unequal noise", "equal noise")))
+
+beta_df <- acc_ratio_ambient %>%
+  group_by(measure) %>%
+  summarise(beta = coef(lm(dyad_max ~ min_max))[2], .groups = "drop") %>%
+  mutate(x = 0.4, y = 1.9)
+
+
+# plot
+
+ggplot(acc_ratio_ambient, aes(x=min_max, y=dyad_max)) +
+  facet_wrap(~measure, labeller = labeller(measure = c("self-feedback" = "no coupling,\nself-feedback",
+                                                       "pooled-feedback" = "coupling via\npooled-feedback"))) +
   
-
-# cols <- sequential_hcl(5, palette = "batlow")[3:1]
-# cols <- diverging_hcl(5, palette = "berlin", l1=75, p2=5)[c(1,5)]
-
-for(n in (c(1.0, 2.0))){
-  ggplot(acc_ratio_ambient %>% filter(noise_1 %in% c(0.5, n), noise_2 %in% c(0.5, n)), 
-         aes(x=min_max, y=dyad_max, shape=noise)) +
-    facet_wrap(~measure, ncol=2) +
-    annotate("rect", xmin = 0, xmax = 1, ymin = 1, ymax = 2, alpha = 0.2, fill = "darkgreen") +
-    annotate("rect", xmin = 0, xmax = 1, ymin = 0, ymax = 1, alpha = 0.2, fill = "darkred") +
-    geom_point(size=3, stroke=1.5) +
-    # geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
-    geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
-    # geom_hline(yintercept=1, linetype="dashed") +
-    geom_segment(aes(x=0, xend=1, y=1, yend=1), linetype="dashed", size=1) +
-    # scale_color_manual(values = cols) + 
-    scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
-    xlim(0,1) +
-    ylim(0, 2.1) +
-    labs(x = expression(italic(P[min] / P[max])), y = expression(italic(P[dyad] / P[max]))) +
-    theme_minimal() +
-    theme(legend.title = element_blank(),
-          legend.text = element_text(size=26),
-          axis.text = element_text(size=26),
-          axis.title = element_text(size=28),
-          strip.text = element_text(size=28),
-          panel.grid.minor = element_blank(),
-          panel.spacing = unit(2, "lines"))
+  # annotate plot
+  annotate("segment", x=0.1, xend=0.1, y=1.1, yend=1.9, arrow=arrow(length=unit(0.2, "cm")), color="black") +
+  annotate("segment", x=0.1, xend=0.1, y=0.9, yend=0.1, arrow=arrow(length=unit(0.2, "cm")), color="black") +
+  annotate("text", x=0.05, y=1.5, label="gain", hjust=0.5, size=7, angle=90) +
+  annotate("text", x=0.05, y=0.5, label="loss", hjust=0.5, size=7, angle=90) +
+  geom_segment(aes(x=0, xend=1, y=1, yend=1), color="black") +
   
-  ggsave(filename = paste0("v3_ratios_nsigma=", n, "_bxbr_ambient.png"), bg = "white", width=15, height=7)
-  
-}
-```
-
-```{r}
-# cols <- sequential_hcl(5, palette = "batlow")[3:1]
-# 
-# for(n in (c(0.5, 1.0, 2.0))){
-#   ggplot(acc_ratio %>% filter(noise_1 %in% c(0.0, n), noise_2 %in% c(0.0, n)),
-#          aes(x=min_max, y=dyad_max, color=noise, shape=noise)) +
-#     facet_grid(measure~.) +
-#     geom_point(alpha=0.8, size=2, stroke=1.1) +
-#     geom_smooth(method = "lm", aes(group=noise, color = noise), se = F) +
-#     geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
-#     geom_hline(yintercept=1, linetype="dashed") +
-#     scale_color_manual(values = cols) + 
-#     scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
-#     xlim(0,1) +
-#     ylim(0.4,1.6) +
-#     labs(x = expression(P[min] / P[max]), y = expression(P[dyad] / P[max])) +
-#     theme_minimal() +
-#     theme(legend.title = element_blank()) +
-#     theme(axis.text = element_text(size=8),
-#           axis.title = element_text(size=10),
-#           strip.text = element_text(size=10))
-#   
-#   ggsave(filename = paste0("v3_ratios_nsigma=", n, "_restricted.png"), bg = "white", width=7, height=7)
-#   
-# }
-```
-
-
-```{r}
-cols <- diverging_hcl(5, palette = "broc")[c(4,5)]
-
-acc_ratio_summary <- acc_ratio %>%
-  filter(noise_1 %in% c(0.5, 2), noise_2 %in% c(0.5, 2)) %>%
-  mutate(noise = case_when(noise_1==noise_2 & noise_1==0.5 ~ "no noise", T ~ noise)) %>%
-  group_by(noise, measure) %>%
-  summarise(m = mean(dyad_max), se = sd(dyad_max)/sqrt(n()), .groups = "drop")
-
-acc_ratio_summary$noise <- factor(acc_ratio_summary$noise, levels = c("equal noise", "unequal noise", "no noise"))
-
-# ggplot(acc_ratio, aes(x=noise, y=dyad_max, color=measure)) +
-#   geom_col(data = acc_ratio_summary,
-#           aes(x = noise, y = m), fill = "grey", position = position_dodge(0.9), inherit.aes = FALSE) +
-#   geom_errorbar(data = acc_ratio_summary,
-#                aes(x = noise, ymin = m - se, ymax = m + se), width = 0.4, position = position_dodge(0.9), inherit.aes = FALSE) +
-#   # geom_jitter(alpha=0.1, width = 0.05, position = position_dodge(0.9)) +
-#   geom_hline(yintercept = 1, linetype = "dashed") +
-#   labs(y=expression(P[dyad] / P[max])) +
-#   theme_minimal() +
-#   theme(axis.title.x = element_blank())
-
-ggplot(acc_ratio_summary, aes(x=noise, y=m, fill=measure)) +
-  geom_col(position = position_dodge(0.9)) +
-  geom_errorbar(aes(ymin = m - se, ymax = m + se), width = 0.4, position = position_dodge(0.9)) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  scale_fill_manual(values = cols) +
-  labs(y=expression(P[dyad] / P[max])) +
+  # plot data
+  geom_point(aes(shape = noise, color = dyad_max >= 1), size = 3, stroke = 1.5) +
+  geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
+  scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+  scale_color_manual(values = c("TRUE" = "blue3", "FALSE" = "red3")) +
+  scale_x_continuous(limits = c(0, 1.1), breaks = c(0.0, 0.5, 1.0)) +
+  scale_y_continuous(limits = c(0, 2.1), breaks = c(0.0, 1.0, 2.0)) +
+  labs(x = expression(italic(P[min] / P[max])),
+       y = expression(italic(P[dyad] / P[max]))) +
+  geom_text(data = beta_df,
+            aes(x=x, y=y,
+                label=paste0("β = ", round(beta,2))), inherit.aes = FALSE, hjust = 1, size = 7) +
   theme_minimal() +
-  theme(axis.title.x = element_blank())
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=26),
+        legend.position = "bottom",
+        legend.key.spacing = unit(1.5, 'cm'),
+        axis.text = element_text(size=26),
+        axis.title = element_text(size=28),
+        strip.text = element_text(size=28)) +
+  guides(color = "none")
+  
+# ggsave(filename = paste0("v3_ratios_", key, "_noise=", sigma_input, "_ambient=", sigma_ambient, ".png"), bg = "white", width=12, height=7)
+```
+
+
+# stats
+
+```{r}
+acc_ratio_test <- acc_ratio_ambient %>%
+  select(noise, measure, min_max, dyad_max) %>%
+  mutate(dyad = rep(1:ceiling(n()/2), each = 2))
+```
+
+```{r}
+summary(lm(dyad_max ~ min_max, data = acc_ratio_test %>% filter(measure=="self-feedback")))
+summary(lm(dyad_max ~ min_max, data = acc_ratio_test %>% filter(measure=="pooled-feedback")))
+```
+
+```{r}
+get_points <- function(model) {
+  b0 <- coef(model)[1]
+  b1 <- coef(model)[2]
+  c(
+    x_intercept = -b0 / b1,
+    x_at_y1     = (1 - b0) / b1
+  )
+}
+
+m_self <- lm(dyad_max ~ min_max,
+             data = acc_ratio_test %>% filter(measure == "self-feedback"))
+
+m_pooled <- lm(dyad_max ~ min_max,
+               data = acc_ratio_test %>% filter(measure == "pooled-feedback"))
+
+get_points(m_self)
+get_points(m_pooled)
+```
+
+```{r}
+summary(lmer(dyad_max ~ min_max*measure + (1|dyad), data = acc_ratio_test))
+```
+
+```{r}
+acc_ratio_test$dyad_max_centered <- acc_ratio_test$dyad_max - 1
+
+lmer_centered <- lmer(dyad_max_centered ~ min_max*measure + (1|dyad), data = acc_ratio_test)
+
+emm <- emmeans(
+  lmer_centered,
+  ~ measure | min_max,
+  at = list(min_max = c(1.0, 0.75, 0.5, 0.25, 0))
+)
+
+summary(emm, infer = TRUE)
+```
+
+
+# preds
+
+```{r}
+mock_df <- data.frame(x=c(0.15, 1, 0.15, 1),
+                      y=c(0.25, 2, 0, 1),
+                      pred = c("dyadic advantage", "dyadic advantage", "null model", "null model"))
+
+ggplot(mock_df, aes(x=x, y=y, linetype=pred)) +
+  geom_line(linewidth = 1) +
+  geom_segment(aes(x=0, xend=1, y=1, yend=1)) +
+  annotate("segment", x=0.1, xend=0.1, y=1.1, yend=1.9, arrow=arrow(length=unit(0.2, "cm"))) +
+  annotate("segment", x=0.1, xend=0.1, y=0.9, yend=0.1, arrow=arrow(length=unit(0.2, "cm"))) +
+  annotate("text", x=0.05, y=1.5, label="gain", hjust=0.5, size=7, angle=90) +
+  annotate("text", x=0.05, y=0.5, label="loss", hjust=0.5, size=7, angle=90) +
+  labs(x = "min / max",
+       y = "dyad / max") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.title = element_text(size=28),
+        panel.grid.minor = element_blank(),
+        legend.position = c(0.45, 0.8),
+        legend.text = element_text(size=26),
+        legend.title = element_blank()) +
+  guides(linetype = guide_legend(override.aes = list(linewidth = 0.6)))
+
+# ggsave(filename = "manuscript_figs/theory_trends.png", bg = "white", width = 7, height = 6)
 ```
 

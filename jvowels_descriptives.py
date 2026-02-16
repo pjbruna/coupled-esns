@@ -5,7 +5,7 @@ from data_processing import *
 
 # load with preprocessing
 
-X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True) # zscore=True
+X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True, do_print=True) # zscore=True
 
 
 # plot LPC values

@@ -33,3 +33,4 @@ __pycache__/
 # ignore folders:
 archive/
 # R scripts/
+speaker_figs/
