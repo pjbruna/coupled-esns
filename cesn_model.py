@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 from scipy.special import softmax
 import reservoirpy as rpy
@@ -681,3 +682,179 @@ class CesnModel_V3:
         avg_acc = np.mean([np.mean(acc1), np.mean(acc2)])
 
         return joint_acc, upper_acc, lower_acc, avg_acc
+    
+
+
+#############################################
+
+
+
+class CesnModel_Multi:
+    def __init__(self, ensemble_size=None, nnodes=None, in_plink=None, rc_plink=None, seed=None):     
+        if ensemble_size is None:
+            raise ValueError("Build failed. Must specify 'ensemble_size'.")
+
+        # normalize parameter types
+        def norm_param(param):
+            if np.isscalar(param):
+                return [param] * ensemble_size
+            else:
+                if len(param) != ensemble_size:
+                    raise ValueError(f"Build failed. Parameter lists must have length {ensemble_size}.")
+                return list(param)
+
+        # check that valid parameters are provided
+        nnodes = norm_param(nnodes)
+        in_plink = norm_param(in_plink)
+        rc_plink = norm_param(rc_plink)
+
+        if seed is None:
+            seed = [None] * ensemble_size
+        else:
+            seed = norm_param(seed)
+
+        # log ensemble size
+        print(f"Building {ensemble_size}-network ensemble...")
+        self.ensemble_size = ensemble_size
+
+        # create network layers
+        self.reservoirs = []
+        self.readouts = []
+
+        for n, ic, rc, s in zip(nnodes, in_plink, rc_plink, seed):
+            reservoir_layer = Reservoir(units=n, input_connectivity=ic, rc_connectivity=rc, sr=0.9, lr=0.1, activation='tanh', seed=s)
+            readout_layer = Ridge(ridge=1e-6)
+
+            self.reservoirs.append(reservoir_layer)
+            self.readouts.append(readout_layer)
+
+
+    def train(self, inputs=None, targets=None, teacherfb_sigma=0.2, warmup=0, reset='zero'):
+        # check inputs and targets are matched
+        if len(inputs) != len(targets):
+            raise ValueError("Inputs and targets must contain same number of samples.")
+
+        # broadcast teacher forcing parameter to ensemble if only one is given
+        if np.isscalar(teacherfb_sigma):
+            tsigma = [teacherfb_sigma] * self.ensemble_size
+        else:
+            tsigma = teacherfb_sigma
+
+        # check teacher forcing parameter is valid
+        if len(tsigma) != self.ensemble_size:
+            raise ValueError("'teacherfb_sigma' must be scalar or specified per network.")
+
+        # train ensemble
+        for net_idx, (reservoir, readout, sigma) in enumerate(zip(self.reservoirs, self.readouts, tsigma)):
+            train_states = []
+            train_targets = []
+            
+            for (x, y) in zip(inputs, targets):
+                for t in range(len(x)):
+                    # create input + feedback
+                    if t==0:
+                        fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep
+                        input_fb = np.concatenate((x[t], fb), axis=None)
+                    else:
+                        fb = y[t] + (sigma * np.random.randn(len(y[t]))) # teacher feedback + simulated Gaussian noise: mu=0, sigma=0.2 (default)
+                        input_fb = np.concatenate((x[t], fb), axis=None)
+
+                    # harvest reservoir states
+                    rstate = reservoir.run(input_fb)
+
+                    if t >= warmup:
+                        train_states.append(rstate)
+                        train_targets.append(y[t, np.newaxis])
+
+                # reset reservoirs
+                if reset=='zero':
+                    reservoir.reset()
+
+                if reset=='random':
+                    reservoir.reset(to_state=np.random.uniform(-1, 1, size=reservoir.output_dim))
+
+            # fit readout layer
+            readout.fit(train_states, train_targets)
+
+            # store trained readout layer
+            self.readouts[net_idx] = readout
+
+        return
+
+
+    def test(self, inputs=None, targets=None, condition=None, input_sigma=0, reset='zero'):
+        # broadcast input noise parameter to ensemble if only one is given
+        if np.isscalar(input_sigma):
+            isigma = [input_sigma] * self.ensemble_size
+        else:
+            isigma = input_sigma
+
+        # check input noise parameter is valid
+        if len(isigma) != self.ensemble_size:
+            raise ValueError("'input_sigma' must be scalar or specified per network.")
+        
+        # check that interaction condition is valid
+        if condition not in ('autocentric', 'polycentric'):
+            raise ValueError("'condition' value is unrecognized.")
+
+        # test ensemble
+        Ypred = [] # shape: (signal, network, timestep, readout node)
+        for (x, y) in zip(inputs, targets):
+            # store model predictions
+            signal_preds = np.zeros((self.ensemble_size, len(x), len(y[0]))) # shape: (network, timestep, readout node)
+            
+            for t in range(len(x)):
+                if t>0:
+                    pooled_fb = np.mean(signal_preds[:,t-1], axis=0)
+
+                for net_idx, (reservoir, readout, sigma) in enumerate(zip(self.reservoirs, self.readouts, isigma)):
+                    noise = np.random.randn(len(x[t])) * sigma
+
+                    if t==0: # no feedback on first timestep
+                        fb = np.zeros(len(y[0]))
+                    elif condition=='autocentric':
+                        fb = signal_preds[net_idx, t-1]
+                    else: # polycentric condition
+                        fb = pooled_fb
+
+                    input_fb = np.concatenate((x[t] + noise, fb))
+                    rstate = reservoir.run(input_fb)
+                    pred = np.array(readout.run(rstate)).ravel()
+                    signal_preds[net_idx, t] = pred
+
+            Ypred.append(signal_preds)
+
+            # reset reservoirs
+            for reservoir in self.reservoirs:
+                if reset=='zero':
+                    reservoir.reset()
+                if reset=='random':
+                    reservoir.reset(to_state=np.random.uniform(-1, 1, size=reservoir.output_dim))
+
+        return np.asarray(Ypred)
+    
+
+    def accuracy(self, predictions=None, targets=None):
+        predictions = np.asarray(predictions)
+        true_labels = np.array([np.max(target[0]) for target in targets])
+
+        # calculate performance per network
+        indiv_responses = np.argmax(np.sum(predictions, axis=2), axis=2)
+        indiv_accs = np.mean(indiv_responses == true_labels[:, np.newaxis], axis=0)
+
+        # calculate joint performance
+        joint_responses = np.argmax(np.sum(np.sum(predictions, axis=2), axis=1), axis=1)
+        joint_acc = np.mean(joint_responses == true_labels)
+
+        # additional
+        upper_acc = np.max(indiv_accs)
+        lower_acc = np.min(indiv_accs)
+        avg_acc = np.mean(indiv_accs)
+
+        return {
+            "joint_acc": joint_acc,
+            "upper_acc": upper_acc,
+            "lower_acc": lower_acc,
+            "avg_acc": avg_acc,
+            "indiv_accs": indiv_accs
+        }
