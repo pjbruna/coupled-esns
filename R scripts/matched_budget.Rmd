@@ -1,0 +1,58 @@
+---
+title: "matched budget"
+output: html_document
+date: "2026-06-01"
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+base_path <- paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/matched_budget/ensemble_")
+```
+
+```{r, message=F}
+sweep_full <- data.frame("esize"=c(), "rsize"=c(), "plink"=c(), "tsigma"=c(), "rconn"=c(), "acc"=c(), "se"=c())
+
+for(i in c("1","2","4","8","16")){
+  batch_1 <- read_csv(paste0(base_path, i, "/psweep_same_batch_1.csv"))
+  batch_2 <- read_csv(paste0(base_path, i, "/psweep_same_batch_2.csv"))
+  batch_3 <- read_csv(paste0(base_path, i, "/psweep_same_batch_3.csv")) 
+  
+  sweep <- rbind(batch_1, batch_2, batch_3) %>%
+    select(!c(sim, batch))
+  
+  sweep_full <- rbind(sweep_full, sweep)
+}
+```
+
+```{r}
+sweep_cleaned <- sweep_full %>%
+  mutate(budget = factor(esize * rsize,
+                         levels = c("400", "800", "1600"), labels = c("low", "mid", "high")),
+         esize = factor(esize))
+
+ggplot(sweep_cleaned, aes(x=budget, y=acc, group=esize, color=esize, fill=esize)) +
+  facet_wrap(~tsigma) +
+  geom_line() +
+  geom_ribbon(aes(ymin = acc - se, ymax = acc + se), alpha = 0.2, linetype = 0) +
+  theme_minimal()
+
+ggplot(sweep_cleaned, aes(x=budget, y=acc, fill=esize)) +
+  facet_wrap(~tsigma) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin=acc-se, ymax=acc+se), position="dodge") +
+  scale_fill_discrete_sequential() +
+  theme_minimal()
+```
+
+```{r}
+ggplot(sweep_cleaned %>% filter(rsize %in% c(100,200)),
+       aes(x=esize, y=acc, group=factor(rsize), color=factor(rsize), fill=factor(rsize))) +
+  facet_wrap(~tsigma) +
+  geom_line() +
+  geom_ribbon(aes(ymin=acc-se, ymax=acc+se), alpha=0.2, linetype=0) +
+  theme_minimal()
+```
+

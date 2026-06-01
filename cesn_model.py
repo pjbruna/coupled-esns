@@ -690,7 +690,7 @@ class CesnModel_V3:
 
 
 class CesnModel_Multi:
-    def __init__(self, ensemble_size=None, nnodes=None, in_plink=None, rc_plink=None, seed=None):     
+    def __init__(self, ensemble_size=None, nnodes=None, in_plink=0.1, rc_plink=0.1, seed=None, print=True):     
         if ensemble_size is None:
             raise ValueError("Build failed. Must specify 'ensemble_size'.")
 
@@ -700,7 +700,7 @@ class CesnModel_Multi:
                 return [param] * ensemble_size
             else:
                 if len(param) != ensemble_size:
-                    raise ValueError(f"Build failed. Parameter lists must have length {ensemble_size}.")
+                    raise ValueError(f"Build failed. Parameter lists must match 'ensemble_size'.")
                 return list(param)
 
         # check that valid parameters are provided
@@ -714,7 +714,9 @@ class CesnModel_Multi:
             seed = norm_param(seed)
 
         # log ensemble size
-        print(f"Building {ensemble_size}-network ensemble...")
+        if print:
+            print(f"Building {ensemble_size}-network ensemble...")
+            
         self.ensemble_size = ensemble_size
 
         # create network layers
@@ -745,7 +747,7 @@ class CesnModel_Multi:
             raise ValueError("'teacherfb_sigma' must be scalar or specified per network.")
 
         # train ensemble
-        for net_idx, (reservoir, readout, sigma) in enumerate(zip(self.reservoirs, self.readouts, tsigma)):
+        for _, (reservoir, readout, sigma) in enumerate(zip(self.reservoirs, self.readouts, tsigma)):
             train_states = []
             train_targets = []
             
@@ -775,9 +777,6 @@ class CesnModel_Multi:
 
             # fit readout layer
             readout.fit(train_states, train_targets)
-
-            # store trained readout layer
-            self.readouts[net_idx] = readout
 
         return
 
@@ -836,7 +835,7 @@ class CesnModel_Multi:
 
     def accuracy(self, predictions=None, targets=None):
         predictions = np.asarray(predictions)
-        true_labels = np.array([np.max(target[0]) for target in targets])
+        true_labels = np.array([np.argmax(target[0]) for target in targets])
 
         # calculate performance per network
         indiv_responses = np.argmax(np.sum(predictions, axis=2), axis=2)
