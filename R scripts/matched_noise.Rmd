@@ -1,0 +1,121 @@
+---
+title: "speed_acc"
+output: html_document
+date: "2026-05-26"
+---
+
+```{r}
+library(tidyverse)
+```
+
+# clean data
+
+```{r}
+# base_path <- "data/"
+# 
+# readouts <- list()
+# 
+# for(batch in c(1:6)){
+#   data_auto_same <- read_csv(paste0(base_path,
+#                                     "readouts_n=2_autocentric/psweep_batch_",
+#                                     batch, "_network.csv"),
+#                         show_col_types = F) %>%
+#     select(!c(esize, plink, rconn)) %>%
+#     mutate(condition = "autocentric", noise = "same")
+# 
+#   data_auto_diff <- read_csv(paste0(base_path,
+#                                     "readouts_n=2_autocentric_diff/psweep_batch_",
+#                                     batch, "_network.csv"),
+#                         show_col_types = F) %>%
+#     select(!c(esize, plink, rconn)) %>%
+#     mutate(condition = "autocentric", noise = "diff")
+#   
+#   data_poly_same <- read_csv(paste0(base_path,
+#                                     "readouts_n=2_polycentric/psweep_batch_",
+#                                     batch, "_network.csv"),
+#                         show_col_types = F) %>%
+#     select(!c(esize, plink, rconn)) %>%
+#     mutate(condition = "polycentric", noise = "same")
+#   
+#   data_poly_diff <- read_csv(paste0(base_path,
+#                                     "readouts_n=2_polycentric_diff/psweep_batch_",
+#                                     batch, "_network.csv"),
+#                         show_col_types = F) %>%
+#     select(!c(esize, plink, rconn)) %>%
+#     mutate(condition = "polycentric", noise = "diff")
+#   
+#   readouts[[length(readouts) + 1]] <- data_auto_same
+#   readouts[[length(readouts) + 1]] <- data_auto_diff
+#   readouts[[length(readouts) + 1]] <- data_poly_same
+#   readouts[[length(readouts) + 1]] <- data_poly_diff
+# }
+# 
+# readouts <- bind_rows(readouts) %>%
+#   mutate(across(c(condition, noise, rsize, tsigma, simulation, signal, network, target), factor))
+```
+
+```{r}
+# ro_all <- readouts %>%
+#   pivot_longer(cols = starts_with("RO"), names_to = "RO", values_to = "act") %>%
+#   
+#   # cumulative activation within each network/RO
+#   group_by(condition, noise, rsize, tsigma, simulation, signal, network, RO) %>%
+#   arrange(timestep, .by_group = TRUE) %>%
+#   mutate(cumact = cumsum(act)) %>%
+#   ungroup() %>%
+#   
+#   # sum across networks
+#   group_by(condition, noise, rsize, tsigma, simulation, signal, timestep, target, RO) %>%
+#   summarise(group_cumact = sum(cumact), .groups = "drop") %>%
+#   
+#   # revert RO to columns
+#   pivot_wider(names_from = RO, values_from = group_cumact) %>%
+#   
+#   # calculate response
+#   mutate(response = max.col(as.matrix(pick(starts_with("RO"))), ties.method = "first"),
+#          correct = response == as.integer(target)) %>%
+#   
+#   # avg over signals
+#   group_by(condition, noise, rsize, tsigma, simulation, timestep) %>%
+#   summarise(m_over_signals = mean(correct), .groups = "drop") %>%
+#   
+#   # mean/se over simulations
+#   group_by(condition, noise, rsize, tsigma, timestep) %>%
+#   summarise(m = mean(m_over_signals), se = sd(m_over_signals) / sqrt(n()), .groups = "drop")
+```
+
+## correlated noise comparison
+
+```{r}
+ro_all <- read_csv("data/matched_noise_comparison.csv")
+```
+
+```{r}
+tsigma_labels = c("sigma[teacher]==0.2",
+                  "sigma[teacher]==1.6")
+
+ro_all %>%
+  filter(timestep==10, rsize==800, tsigma %in% c(0.2, 1.6)) %>%
+  mutate(tsigma = factor(tsigma, labels = tsigma_labels)) %>%
+  ggplot(aes(x=noise, y=m, linetype=condition, color=tsigma)) +
+    geom_point(size=2) +
+    geom_line(aes(group=interaction(condition, tsigma)), size=1) +
+    geom_errorbar(aes(ymin=m-se, ymax=m+se), width=0.2, size=1) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_x_discrete(labels = c("independent", "matched")) +
+    scale_linetype_manual(labels = c("no coupling, self-feedback", "coupling via pooled-feedback"),
+                          values = c("dashed", "solid"),
+                          guide = guide_legend(reverse = TRUE)) +
+    scale_color_manual(labels = parse(text = tsigma_labels),
+                       values = c("hotpink", "gray30")) +
+    labs(x = expression(italic(sigma[input])), y = expression(italic(P[dyad]))) +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank(),
+          legend.position = "none",
+          axis.text = element_text(size=26),
+          axis.title = element_text(size=28),
+          axis.text.x = element_text(size=26))
+
+# ggsave(filename = "manuscript_figs/matched_noise.png", bg = "white", width=9, height=7)
+```
+

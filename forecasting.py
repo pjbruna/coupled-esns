@@ -11,8 +11,8 @@ rpy.verbosity(0)
 
 ### DATA ###
 
-sample = 1000
-generate = 750
+sample = 900
+generate = 1000
 series = mackey_glass(n_timesteps=2000)
 
 scaler = StandardScaler().fit(series[:sample])
@@ -28,7 +28,7 @@ Y_test = z_series[sample+1:sample+generate+1]
 
 simulations = {'coupled': [], 'independent': []}
 
-for run in range(20):
+for run in range(10):
     print(f'Running simulation #{run+1}...')
 
     model = CesnModel_V3(nnodes=[800,800], in_plink=[0.1,0.1])

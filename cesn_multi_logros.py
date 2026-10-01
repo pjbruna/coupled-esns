@@ -10,21 +10,12 @@ rpy.verbosity(0)
 global_seed = 42
 rng = np.random.default_rng(global_seed)
 
-
-### HYPERPARAMS ###
-
-rsize = [1600, 1600]      # reservoir size
-plink = [0.1, 0.1]      # input/fb connectivity
-tsigma = [6.4, 6.4]     # noise added to teacher forcing
-noise = [2.0, 2.0]      # noise added to inputs during testing
-
-reset_state = 'zero'    # reset reservoirs between signals
-runs = 20               # dyad simulations
+base_path = f"data/v3/speed_acc/800_02_20/predictions"
+runs = 20
 
 
 ### RUN ###
 
-base_path = f"data/v3/speed_acc/1600_64_20_same/predictions"
 results_list = []
 preds_list = []
 
@@ -37,23 +28,14 @@ for sim in range(runs):
     # sample data
     X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True)
 
-    # reverse order within signals
-    # X_train = [np.flip(signal, axis=0) for signal in X_train]
-    # X_test = [np.flip(signal, axis=0) for signal in X_test]
-
-    # shuffle order within signals
-    # X_train = [signal[np.random.permutation(len(signal))] for signal in X_train]
-    # X_test  = [signal[np.random.permutation(len(signal))] for signal in X_test]
-
     # train networks
-    model = CesnModel_V3(nnodes=rsize, in_plink=plink, seed=r_seeds)
-    model.train_r1(input=X_train, target=Y_train, teacherfb_sigma=tsigma[0])
-    model.train_r2(input=X_train, target=Y_train, teacherfb_sigma=tsigma[1])
+    model = CesnModel_Multi(ensemble_size=2, nnodes=800, in_plink=0.1, rc_plink=0.1, seed=r_seeds, do_print=False)
+    model.train(inputs=X_train, targets=Y_train, teacherfb_sigma=0.2)
 
     # test networks
-    for cond in ["auto", "poly"]:     
+    for cond in ["autocentric", "polycentric"]:     
               
-        results = model.test(input=X_test, target=Y_test, condition=cond, input_sigma=noise, reset=reset_state)
+        results = model.test(inputs=X_test, targets=Y_test, condition=cond, input_sigma=2.0)
         # joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
         # results_list.append({
@@ -65,7 +47,7 @@ for sim in range(runs):
         #     "avg": avg
         # })
 
-        y1 = np.vstack(results[0])
+        y1 = np.vstack(results[0]) ## FIX ##
         y2 = np.vstack(results[1])
 
         for (name, item) in zip(['y1', 'y2'], [y1, y2]):

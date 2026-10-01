@@ -15,6 +15,12 @@ from cesn_model import *
 # FUNCTIONS
 # ---------------------------------------------------------
 
+def reservoir_sparsity(nnodes, degree=10): # calculate reservoir sparsity based on number of reservoir nodes
+    conn = degree/nnodes
+
+    return [conn,conn]
+
+
 def check_isolation(tag, log_path, rng): # confirm independence of parallel processes
     with open(log_path, "a") as f:
         f.write(f"[{tag}] PID={os.getpid()} starting isolation test...\n")
@@ -22,7 +28,7 @@ def check_isolation(tag, log_path, rng): # confirm independence of parallel proc
         f.write(f"[{tag}] PID={os.getpid()} random_val={val:.6f} \n")
 
 
-def run_simulations(runs, rsize, plink, tsigma, rng): # runs N simulations given (r,p,t) # rconn
+def run_simulations(runs, rsize, plink, tsigma, rconn, rng): # runs N simulations given (r,p,t,c)
     rsize = [int(r) for r in rsize]
     results_list = []
 
@@ -32,12 +38,12 @@ def run_simulations(runs, rsize, plink, tsigma, rng): # runs N simulations given
 
         X_train, Y_train, X_test, Y_test = generate_jvowels(signal_length=10, zscore=True, do_print=False)
 
-        model = CesnModel_V3(nnodes=rsize, in_plink=plink, seed=r_seeds) # rc_plink=rconn
+        model = CesnModel_V3(nnodes=rsize, in_plink=plink, rc_plink=rconn, seed=r_seeds)
         model.train_r1(input=X_train, target=Y_train, teacherfb_sigma=tsigma[0])
         model.train_r2(input=X_train, target=Y_train, teacherfb_sigma=tsigma[1])
 
         for cond in ["auto", "poly"]:   
-            results = model.test(input=X_test, target=Y_test, condition=cond, input_sigma=[2.0, 2.0])
+            results = model.test(input=X_test, target=Y_test, condition=cond, input_sigma=[0, 0])
             joint, upper, lower, avg = model.accuracy(pred1=results[0], pred2=results[1], target=Y_test)
 
             results_list.append({
@@ -51,7 +57,7 @@ def run_simulations(runs, rsize, plink, tsigma, rng): # runs N simulations given
     return results_list
 
 
-def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # runs batch of (r,p,t) values
+def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # runs batch of (r,p,t,c) values
     rpy.verbosity(0)
     rng = np.random.default_rng(global_seed + batch_idx)
     check_isolation(f"batch_{batch_idx}", main_log_path, rng)
@@ -70,7 +76,9 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
 
         accuracies_list = []
         for rsize, plink, tsigma in batch: # rconn
-            results = run_simulations(runs, rsize, plink, tsigma, rng) # rconn
+            rconn = reservoir_sparsity(rsize[0])
+
+            results = run_simulations(runs, rsize, plink, tsigma, rconn, rng)
 
             # calculate mean and standard error per condition/measure
             tempdf = pd.DataFrame(results)
@@ -92,11 +100,11 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
             summary["rsize_1"] = rsize[0]
             summary["plink_1"] = plink[0]
             summary["tsigma_1"] = tsigma[0]
-            # summary["rconn_1"] = rconn[0]
+            summary["rconn_1"] = rconn[0]
             summary["rsize_2"] = rsize[1]
             summary["plink_2"] = plink[1]
             summary["tsigma_2"] = tsigma[1]
-            # summary["rconn_2"] = rconn[1]
+            summary["rconn_2"] = rconn[1]
 
             # log outcomes
             accuracies_list.extend(summary.to_dict(orient="records"))
@@ -107,7 +115,7 @@ def run_batch(batch_idx, batch, runs, base_path, global_seed, main_log_path): # 
             print(f"rsize: ({rsize[0]:<6}, {rsize[1]:<6}) | "
                   f"plink: ({plink[0]:<5}, {plink[1]:<5}) | "
                   f"tsigma: ({tsigma[0]:<5}, {tsigma[1]:<5}) | "
-                  # f"rconn: ({rconn[0]:<5}, {rconn[1]:<5}) | "
+                  f"rconn: ({rconn[0]:<5}, {rconn[1]:<5}) | "
                   f"pcorrect: {print_m:<5} | "
                   f"se: {print_se:<5}")
 
@@ -134,7 +142,7 @@ if __name__ == "__main__":
     global_seed = 42
     np.random.seed(global_seed)
     analysis="same" # same-heads analysis or mixed-heads analysis
-    base_path = f"data/v3/psweep_{analysis}"
+    base_path = f"data/v3/matched_budget/psweep_{analysis}"
     runs = 10 # simulations per parameterization
 
     # redirect stdout and stderr to a file
@@ -146,17 +154,17 @@ if __name__ == "__main__":
     sys.stderr = main_log
 
     # hyperparams
-    rsize_range =   [50, 100, 200, 400, 800, 1600]      # reservoir size
-    plink_range =   [0.1, 0.3, 0.5]                     # input/fb connectivity
-    tsigma_range =  [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]      # noise added to teacher forcing
-    # rconn_range =   [0.1, 0.3, 0.5]                     # reservoir internal connectivity
+    rsize_range =   [25, 50, 100, 200, 400, 800, 1600, 3200]  # reservoir size
+    plink_range =   [0.1] # [0.1, 0.3, 0.5]                   # input/fb connectivity
+    tsigma_range =  [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]            # noise added to teacher forcing
+    # rconn_range =   [0.005, 0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64] # reservoir internal connectivity
 
     print(f"Global seed: {global_seed}")
-    print(f"{runs} simulations per (r,p,t,c)")
+    print(f"{runs} simulations per (r,p,t)")
 
     # create parameter combinations
     R, P, T = np.meshgrid(rsize_range, plink_range, tsigma_range, indexing='ij') # rconn_range
-    param_combs = np.column_stack([R.ravel(), P.ravel(), T.ravel()]) # C.ravel()
+    param_combs = np.column_stack([R.ravel(), P.ravel(), T.ravel()])             # C.ravel()
 
     # shuffle for mixed-heads analysis
     shuffled_param_combs = param_combs.copy()
@@ -167,7 +175,7 @@ if __name__ == "__main__":
     combs_mixed = np.stack([param_combs, shuffled_param_combs], axis=2)
 
     # batch parameters for sweep
-    batch_size = 18
+    batch_size = 6 # 18
     if analysis=="same":
         total = combs_same.shape[0]
         batches = [combs_same[i:i+batch_size] for i in range(0, total, batch_size)]

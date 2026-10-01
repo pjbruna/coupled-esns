@@ -1,0 +1,40 @@
+---
+title: "parameter scaling"
+output: html_document
+date: "2026-08-26"
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+x <- 10
+n <- 50
+
+deg = 10
+
+nnode_list <- x * 2^(0:(n - 1))
+rho_list <- deg / nnode_list
+er_list <- log(nnode_list) / nnode_list
+
+# mean(rho_list > er_list)
+```
+
+```{r}
+df <- data.frame(rho=rho_list, er=er_list, nnode=nnode_list) %>%
+  mutate(pass = rho_list > er_list,
+         conn = (nnode^2)*rho) %>%
+  pivot_longer(cols = c(rho, er), names_to = "metric", values_to = "value")
+
+ggplot(df, aes(x=log2(nnode), y=log2(value), color=metric, shape=pass)) +
+  geom_point() +
+  geom_line() +
+  theme_minimal()
+```
+
+```{r}
+
+```
+

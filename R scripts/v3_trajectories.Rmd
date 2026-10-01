@@ -13,7 +13,7 @@ library(lmerTest)
 ```
 
 
-# load data
+# data processing functions
 
 ```{r, message=FALSE}
 process_trajdata <- function(base_path, tsigma){
@@ -143,8 +143,8 @@ process_trajdata_raw <- function(base_path, tsigma){
 # readout dynamics
 
 ```{r, message=FALSE}
-path1 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
-path2 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_16/"
+path1 <- "data/speed_acc_800_01_02_10/" #ro_800_01_02/"
+path2 <- "data/speed_acc_800_01_16_10/" #ro_800_01_16/"
 
 traj1 <- process_trajdata(path1, "0.2")
 traj2 <- process_trajdata(path2, "1.6")
@@ -157,7 +157,7 @@ traj_plot$tsigma <- factor(traj_plot$tsigma, levels = c("0.2", "1.6"), labels = 
 
 traj_plot$cond <- factor(traj_plot$cond, levels = c("auto", "poly"), labels = c("no coupling,\nself-feedback", "coupling via\npooled-feedback"))
 
-cols <- sequential_hcl(5, palette="redyellow")[c(1,3)]
+# cols <- sequential_hcl(5, palette="redyellow")[c(1,3)]
 
 ggplot(traj_plot, aes(x=timestep, y=m, shape=factor(correct, levels = c("1","0")), color=factor(correct, levels = c("1","0")), fill=factor(correct, levels = c("1","0")), group = traj)) +
   facet_grid(tsigma~cond, labeller = labeller(cond = label_value,
@@ -169,10 +169,10 @@ ggplot(traj_plot, aes(x=timestep, y=m, shape=factor(correct, levels = c("1","0")
   geom_segment(aes(x=0, xend=10, y=-0.35, yend=-0.35), color="black", size=1.5, linetype="dashed") +
   geom_segment(aes(x=0, xend=10, y=2.83, yend=2.83), color="black", size=1.5, linetype="dashed") +
   scale_shape_manual(values=c(1,4), labels=c("target", "competitors")) +
-  scale_color_manual(values=c(cols[1], cols[2]), labels=c("target", "competitors")) +
-  scale_fill_manual(values=c(cols[1], cols[2]), labels=c("target", "competitors")) +
+  scale_color_manual(values=c("#B10000", "#C97000"), labels=c("target", "competitors")) +
+  scale_fill_manual(values=c("#B10000", "#C97000"), labels=c("target", "competitors")) +
   scale_x_continuous(breaks = c(2,4,6,8,10)) +
-  scale_y_continuous(limits = c(-1.7,3.5)) +
+  scale_y_continuous(limits = c(-1.9,3.5)) +
   labs(x = "time step",
        y = "activation",
        shape = "trajectory",
@@ -195,8 +195,8 @@ ggplot(traj_plot, aes(x=timestep, y=m, shape=factor(correct, levels = c("1","0")
 # dispersion
 
 ```{r, message=FALSE}
-path1 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_02/"
-path2 <- "C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/ro_800_01_16/"
+path1 <- "data/ro_800_01_02/"
+path2 <- "data/ro_800_01_16/"
 
 rawtraj1 <- process_trajdata_raw(path1, "0.2")
 rawtraj2 <- process_trajdata_raw(path2, "1.6")
@@ -217,29 +217,35 @@ disp_df <- traj_raw %>%
 disp_plot <- disp_df %>%
   group_by(cond, tsigma, timestep) %>%
   summarise(m = mean(delta_act), se = sd(delta_act)/sqrt(n())) %>%
-  mutate(cond = factor(cond, levels = c("auto", "poly"),
-                       labels = c("no coupling, self-feedback", "coupling via pooled-feedback")),
-         tsigma = factor(tsigma, levels = "0.2", "1.6"))
+  mutate(cond = factor(cond, levels = c("poly", "auto"),
+                       labels = c("coupling via pooled-feedback", "no coupling, self-feedback")),
+         tsigma = factor(tsigma, levels = c("0.2", "1.6")))
 
 ggplot(disp_plot, aes(x=timestep, y=m, color=tsigma, fill=tsigma, linetype=cond)) +
-  geom_line() +
+  geom_line(size=1) +
   geom_ribbon(aes(x=timestep, ymin = m-se, ymax=m+se, fill=tsigma, group=interaction(cond, tsigma)),
               alpha = 0.2, linetype=0, inherit.aes = F) +
   scale_linetype_manual(values = c("solid", "dashed")) +
-  scale_color_discrete(labels = c(expression(italic(sigma[teacher] == 0.2)),
-                                  expression(italic(sigma[teacher] == 1.6)))) +
-  scale_fill_discrete(labels = c(expression(italic(sigma[teacher] == 0.2)),
-                                 expression(italic(sigma[teacher] == 1.6)))) +
+  scale_color_manual(labels = c(expression(italic(sigma[teacher] == 0.2)),
+                                  expression(italic(sigma[teacher] == 1.6))),
+                       values = c("hotpink", "gray30")) +
+  scale_fill_manual(labels = c(expression(italic(sigma[teacher] == 0.2)),
+                                 expression(italic(sigma[teacher] == 1.6))),
+                       values = c("hotpink", "gray30")) +
   labs(x = "time step", y = expression(italic(Delta[act]))) +
   theme_minimal() +
   theme(legend.title = element_blank(),
         legend.text = element_text(size=20),
-        legend.position = c(0.3, 0.7),
+        legend.position = "top",
+        legend.box = "horizontal",
+        legend.box.just = "center",
         axis.text = element_text(size=20),
         axis.title = element_text(size=22),
         strip.text = element_text(size=22),
         panel.grid.minor = element_blank()) +
-  guides(linetype = guide_legend(order = 1))
+  guides(color = guide_legend(order = 1,ncol = 1,keywidth = unit(1.5, "cm")),
+         linetype = guide_legend(order = 2,ncol = 1,keywidth = unit(1.5, "cm")),
+         fill = "none")
 
 # ggsave(filename = "manuscript_figs/dynamics_delta.png", bg = "white", width=9, height=3)
 ```
@@ -284,6 +290,60 @@ ggplot(preds_sum %>% filter(timestep<=3), aes(x=node, y=ysum_cum)) +
   theme_bw() +
   theme(strip.text = element_blank())
 
-# ggsave(filename = "C:/Users/bruna/Desktop/GitHub/coupled-esns/speaker_figs/readout_all.png", bg = "white")
+# ggsave(filename = "readout_all.png", bg = "white")
+```
+
+
+# faster decisions?
+
+```{r, message=F}
+path1 <- "data/speed_acc_1600_01_02_20/"
+# path2 <- "data/speed_acc_800_01_16_10/"
+
+traj1 <- process_trajdata_raw(path1, "0.2")
+# traj2 <- process_trajdata_raw(path2, "1.6")
+
+# traj_plot <- rbind(traj1, traj2)
+```
+
+```{r}
+cumact_plot <- traj1 %>%
+  pivot_longer(cols = !c(sim, cond, timestep, tsigma, signal, target), names_to = "RO", values_to = "act") %>%
+  group_by(sim, cond, signal, tsigma, RO) %>%
+  mutate(cumact = cumsum(act)) %>%
+  group_by(cond, target, signal, timestep, tsigma, RO) %>%
+  summarise(avg_persig = mean(cumact)) %>%
+  group_by(cond, target, timestep, tsigma, RO) %>%
+  summarise(m = mean(avg_persig), se = sd(avg_persig)/sqrt(n()))
+
+ggplot(cumact_plot %>% filter(tsigma==0.2),
+       aes(x=timestep, y=m, group=interaction(RO,cond), color=cond, fill=cond)) +
+  facet_wrap(~target) +
+  geom_line() +
+  geom_ribbon(aes(ymin = m-se, ymax = m+se), alpha=0.2, linetype=0) +
+  theme_minimal()
+```
+
+```{r}
+cumact_correct <- traj1 %>%
+  pivot_longer(cols = !c(sim, cond, timestep, tsigma, signal, target), names_to = "RO", values_to = "act") %>%
+  filter(target == as.numeric(substr(RO, 2,2))+1) %>%
+  group_by(sim, cond, signal, tsigma) %>%
+  mutate(cumact = cumsum(act)) %>%
+  group_by(cond, tsigma, timestep) %>%
+  summarise(m_corr = mean(cumact), se_corr = sd(cumact)/sqrt(n()))
+
+cumact_correct <- cumact_plot %>%
+ filter(target == as.numeric(substr(RO, 2,2))+1) %>%
+ group_by(cond, tsigma, timestep) %>%
+ summarise(m_corr = mean(m), se_corr = sd(m)/sqrt(n()))
+
+ggplot(cumact_correct,
+       aes(x=timestep, y=m_corr, color=cond, fill=cond)) +
+  # facet_wrap(~tsigma) +
+  geom_line() +
+  geom_ribbon(aes(ymin = m_corr-se_corr, ymax = m_corr+se_corr), alpha=0.2, linetype=0) +
+  scale_x_continuous(breaks = c(1:10)) +
+  theme_minimal()
 ```
 

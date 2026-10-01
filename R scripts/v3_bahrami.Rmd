@@ -18,7 +18,7 @@ library(emmeans)
 ```{r} 
 key <- "bxbr"
 
-accuracies_raw <- read_csv(paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/accuracies_N=20_", key, "_final.csv"))
+accuracies_raw <- read_csv(paste0("data/accuracies_N=20_", key, "_final.csv"))
 ```
 
 ```{r}
@@ -63,9 +63,9 @@ sigma_input <- 2
 
 acc_ratio_ambient <- acc_ratio %>%
   filter(noise_1 %in% c(sigma_ambient, sigma_input), noise_2 %in% c(sigma_ambient, sigma_input)) %>%
-  mutate(noise = case_when(noise_1==sigma_ambient & noise_2==sigma_ambient ~ "no noise",
+  mutate(noise = case_when(noise_1==sigma_ambient & noise_2==sigma_ambient ~ "low noise",
                            T ~ noise),
-         noise = factor(noise, levels = c("no noise", "unequal noise", "equal noise")))
+         noise = factor(noise, levels = c("low noise", "unequal noise", "equal noise"), labels = c("low noise", "high/low noise", "high noise")))
 
 beta_df <- acc_ratio_ambient %>%
   group_by(measure) %>%
@@ -89,7 +89,7 @@ ggplot(acc_ratio_ambient, aes(x=min_max, y=dyad_max)) +
   # plot data
   geom_point(aes(shape = noise, color = dyad_max >= 1), size = 3, stroke = 1.5) +
   geom_smooth(method = "lm", aes(group=1), color = "black", se = F) +
-  scale_shape_manual(values = c("no noise" = 0, "unequal noise" = 1, "equal noise" = 2)) +
+  scale_shape_manual(values = c("low noise" = 0, "high/low noise" = 1, "high noise" = 2)) +
   scale_color_manual(values = c("TRUE" = "blue3", "FALSE" = "red3")) +
   scale_x_continuous(limits = c(0, 1.1), breaks = c(0.0, 0.5, 1.0)) +
   scale_y_continuous(limits = c(0, 2.1), breaks = c(0.0, 1.0, 2.0)) +

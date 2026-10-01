@@ -8,7 +8,7 @@ rpy.verbosity(0)
 
 ### Hyperparameters ###
 
-nnodes = 500
+nnodes = 400
 warmup = 0
 teacherfb_sigma = 0.2
 feedback = False

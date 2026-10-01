@@ -6,53 +6,447 @@ date: "2026-06-01"
 
 ```{r}
 library(tidyverse)
+library(patchwork)
+library(colorspace)
 ```
 
-```{r}
-base_path <- paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/matched_budget/ensemble_")
+# pooled-feedback
+
+## load data
+
+```{r, message=F}
+base_path_group <- paste0("data/matched_budget_fullspec/")
+
+sweep_group <- data.frame(
+  esize=numeric(),
+  rsize=numeric(),
+  plink=numeric(),
+  tsigma=numeric(),
+  rconn=numeric(),
+  acc=numeric(),
+  se=numeric()
+)
+
+for(i in c(1:12)){
+  batch <- read_csv(paste0(base_path_group, "psweep_batch_", i, ".csv"))
+  sweep_group <- rbind(sweep_group, batch)
+}
+
+sweep_group$budget <- sweep_group$esize * sweep_group$rsize
 ```
 
 ```{r, message=F}
-sweep_full <- data.frame("esize"=c(), "rsize"=c(), "plink"=c(), "tsigma"=c(), "rconn"=c(), "acc"=c(), "se"=c())
+# add ensemble=16
 
-for(i in c("1","2","4","8","16")){
-  batch_1 <- read_csv(paste0(base_path, i, "/psweep_same_batch_1.csv"))
-  batch_2 <- read_csv(paste0(base_path, i, "/psweep_same_batch_2.csv"))
-  batch_3 <- read_csv(paste0(base_path, i, "/psweep_same_batch_3.csv")) 
-  
-  sweep <- rbind(batch_1, batch_2, batch_3) %>%
-    select(!c(sim, batch))
-  
-  sweep_full <- rbind(sweep_full, sweep)
+base_path_group_add <- paste0("data/matched_budget_fullspec_16/")
+
+sweep_group_add <- data.frame(
+  esize=numeric(),
+  rsize=numeric(),
+  plink=numeric(),
+  tsigma=numeric(),
+  rconn=numeric(),
+  acc=numeric(),
+  se=numeric()
+)
+
+for(i in c(1:12)){
+  batch <- read_csv(paste0(base_path_group_add, "psweep_batch_", i, ".csv"))
+  sweep_group_add <- rbind(sweep_group_add, batch)
 }
+
+sweep_group_add$budget <- sweep_group_add$esize * sweep_group_add$rsize
+
+sweep_group <- rbind(sweep_group, sweep_group_add)
+```
+
+## effect of ensemble size
+
+```{r}
+rsize_labels = c("2^0 %*% 10",
+                 "2^1 %*% 10",
+                 "2^2 %*% 10",
+                 "2^3 %*% 10",
+                 "2^4 %*% 10",
+                 "2^5 %*% 10",
+                 "2^6 %*% 10",
+                 "2^7 %*% 10")
+
+sweep_group %>%
+  mutate(esize = factor(esize, levels = c("1", "2", "4", "8", "16")),
+         rsize = factor(rsize, labels = rsize_labels),
+         tsigma = factor(tsigma)) %>%
+  ggplot(aes(x=esize, y=acc)) +
+    stat_summary(fun=mean, aes(group=rsize, color=rsize), geom="line", size=1) +
+    stat_summary(fun=mean, aes(group=rsize, color=rsize), geom="point", size=2) +
+    stat_summary(fun=mean, aes(group=1), geom="line", size=1.5, color = "black") +
+    stat_summary(fun=mean, aes(group=1), geom="point", size=2.5, color = "black") +
+    stat_summary(fun.data = mean_se, aes(group=1), geom="errorbar", width=0.2, size=1.5) +
+    scale_discrete_manual(aes = c("colour", "fill"),
+                          values = c("#D4B800", "#CFA001", "#C97000", "#CA2500",
+                                     "#B10000", "#850000", "#590000", "#2C0000"),
+                       labels = parse(text = rsize_labels)) +
+    labs(x=expression(italic(E)),
+         y=expression(italic(P[collective])),
+         color=expression(italic(N[res])),
+         fill=expression(italic(N[res]))) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank(),
+            legend.title = element_text(size=28),
+            legend.text = element_text(size=26),
+            legend.key.spacing.y = unit(0.5, "cm"), 
+            axis.text = element_text(size=26),
+            axis.title = element_text(size=28),
+            strip.text = element_text(size=28))
+
+# ggsave(filename = "manuscript_figs/ensemble_size_agg.png", bg = "white", width=12, height=10)
+```
+
+## matched budget
+
+```{r}
+# across tsigma
+
+# sweep_group %>%
+#   mutate(esize = as.factor(esize),
+#          budget = as.factor(budget)) %>%
+#   ggplot(aes(x=budget, y=acc, group=esize, color=esize, fill=esize)) +
+#     facet_wrap(~tsigma) +
+#     geom_line() +
+#     geom_ribbon(aes(ymin=acc-se, ymax=acc+se), alpha=0.2, linetype=0) +
+#     labs(x=expression("budget (total " ~ italic(N)[res] ~ ")"),
+#          y=expression(italic(P[collective])),
+#          color="ensemble size", fill="ensemble size") +
+#     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+#     theme_minimal() +
+#     theme(legend.title = element_text(size=28),
+#           legend.text = element_text(size=26),
+#           legend.position = "top",
+#           legend.key.spacing = unit(1.5, 'cm'),
+#           axis.text.x = element_text(angle = 45),
+#           axis.text = element_text(size=26),
+#           axis.title = element_text(size=28),
+#           strip.text = element_text(size=28),
+#           plot.margin = margin(t = 5.5, r = 25, b = 5.5, l = 5.5))
+
+# ggsave(filename = "manuscript_figs/matched_budget.png", bg = "white", width=20, height=15)
 ```
 
 ```{r}
-sweep_cleaned <- sweep_full %>%
-  mutate(budget = factor(esize * rsize,
-                         levels = c("400", "800", "1600"), labels = c("low", "mid", "high")),
-         esize = factor(esize))
+budget_labels = c("2^0 %*% 10",
+                  "2^1 %*% 10",
+                  "2^2 %*% 10",
+                  "2^3 %*% 10",
+                  "2^4 %*% 10",
+                  "2^5 %*% 10",
+                  "2^6 %*% 10",
+                  "2^7 %*% 10",
+                  "2^8 %*% 10",
+                  "2^9 %*% 10",
+                  "2^10 %*% 10",
+                  "2^11 %*% 10")
 
-ggplot(sweep_cleaned, aes(x=budget, y=acc, group=esize, color=esize, fill=esize)) +
-  facet_wrap(~tsigma) +
-  geom_line() +
-  geom_ribbon(aes(ymin = acc - se, ymax = acc + se), alpha = 0.2, linetype = 0) +
-  theme_minimal()
+sweep_group %>%
+  mutate(esize = as.factor(esize),
+         budget = factor(budget, labels = budget_labels)) %>%
+  ggplot(aes(x=budget, y=acc, group=interaction(esize, tsigma), linetype=esize, color=esize, fill=esize)) +
+    stat_summary(fun=mean, aes(group=esize), geom="line", linewidth=1.5) +
+    stat_summary(fun.data = mean_se, aes(group=esize), geom="ribbon", alpha=0.2, linetype=0) +
+    labs(x=expression("budget (total " ~ italic(N)[res] ~ ")"),
+         y=expression(italic(P[collective])),
+         color=expression(italic(E)), fill=expression(italic(E)), linetype = expression(italic(E))) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_x_discrete(labels = parse(text = budget_labels)) +
+    scale_color_manual(values = c("#F45100", "#FFC400",
+                                  "#E91E8C", "#7A2E00", "#0057B8")) +
+    scale_fill_manual(values = c("#F45100", "#FFC400",
+                                 "#E91E8C", "#7A2E00", "#0057B8")) +
+    scale_linetype_manual(values = c(1, 2, 3, 4, 6)) +
+    theme_minimal() +
+    theme(legend.title = element_text(size=28),
+          legend.text = element_text(size=26),
+          legend.position = "top",
+          legend.key.spacing = unit(1.5, 'cm'),
+          axis.text.x = element_text(angle = 45),
+          axis.text = element_text(size=26),
+          axis.title = element_text(size=28),
+          plot.margin = margin(t = 5.5, r = 25, b = 5.5, l = 5.5))
 
-ggplot(sweep_cleaned, aes(x=budget, y=acc, fill=esize)) +
-  facet_wrap(~tsigma) +
-  geom_bar(position="dodge", stat="identity") +
-  geom_errorbar(aes(ymin=acc-se, ymax=acc+se), position="dodge") +
-  scale_fill_discrete_sequential() +
-  theme_minimal()
+# ggsave(filename = "manuscript_figs/matched_budget_agg.png", bg = "white", width=12, height=10)
+```
+
+## efficiency
+
+```{r}
+acc_diff <- sweep_group %>%
+  filter(budget %in% c(160:1280)) %>%
+  select(esize, budget, tsigma, acc) %>%
+  pivot_wider(names_from = esize, values_from = acc) %>%
+  rename("baseline"="1") %>%
+  pivot_longer(cols = c("2", "4", "8", "16"), names_to = "esize", values_to = "acc") %>%
+  mutate(acc_diff = acc / baseline) 
 ```
 
 ```{r}
-ggplot(sweep_cleaned %>% filter(rsize %in% c(100,200)),
-       aes(x=esize, y=acc, group=factor(rsize), color=factor(rsize), fill=factor(rsize))) +
-  facet_wrap(~tsigma) +
-  geom_line() +
-  geom_ribbon(aes(ymin=acc-se, ymax=acc+se), alpha=0.2, linetype=0) +
-  theme_minimal()
+# avg
+
+avg <- acc_diff %>%
+  mutate(esize = factor(esize, levels = c("2", "4", "8", "16")),
+         budget = factor(budget, labels = budget_labels[5:8]),
+         tsigma = as.factor(tsigma)) %>%
+  group_by(esize) %>%
+  summarise(m = mean(acc_diff), se = sd(acc_diff)/sqrt(n()))
+
+p_avg <- ggplot(avg, aes(x = esize, y = m, group=1)) +
+  geom_line(linewidth = 1.5) +
+  geom_point(size = 2.5) +
+  geom_errorbar(aes(ymin=m-se, ymax=m+se), width=0.2, size=1.5) +
+  labs(x = NULL, y = expression(italic(P[collective]/P[solo]))) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    axis.text.y = element_text(size = 26),
+    axis.title.y = element_text(size = 28),
+    panel.grid.minor = element_blank())
+
+# heatmap
+
+p_heat <- acc_diff %>%
+  mutate(esize = factor(esize, levels = c("2", "4", "8", "16")),
+         budget = factor(budget, labels = budget_labels[5:8])) %>%
+  group_by(budget, esize) %>%
+  summarize(acc_diff = mean(acc_diff)) %>%
+  ggplot(aes(x = esize, y = budget, fill = acc_diff)) +
+    geom_tile(color = "white", linewidth = 0.5) +
+    geom_text(aes(label = round(acc_diff,2),
+                  color = ifelse(acc_diff>1.7, "black", "white")), size = 10) +
+    scale_color_identity(guide = "none") +
+    scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(1, 2),
+                                  oob = scales::squish,
+                                  l1=75, p2=5, rev=T,
+                                  labels = scales::percent_format(accuracy = 1), guide = "none") +
+    scale_y_discrete(labels = parse(text = budget_labels[5:8])) +
+    labs(x = expression(italic(E)),
+         y = "budget") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 26),
+          axis.title = element_text(size = 28),
+          legend.title = element_text(size = 28),
+          legend.text = element_text(size = 26),
+          panel.grid = element_blank())
+
+# Combine
+p_avg / p_heat +
+  plot_layout(
+    heights = c(2, 4)
+  )
+
+# ggsave(filename = "manuscript_figs/efficiency_heatmap.png", bg = "white", width=12, height=10)
 ```
 
+
+# self-feedback
+
+## load data
+
+```{r, message=F}
+base_path_group <- paste0("data/matched_budget_fullspec_auto/")
+
+sweep_group <- data.frame(
+  esize=numeric(),
+  rsize=numeric(),
+  plink=numeric(),
+  tsigma=numeric(),
+  rconn=numeric(),
+  acc=numeric(),
+  se=numeric()
+)
+
+for(i in c(1:12)){
+  batch <- read_csv(paste0(base_path_group, "psweep_batch_", i, ".csv"))
+  sweep_group <- rbind(sweep_group, batch)
+}
+
+sweep_group$budget <- sweep_group$esize * sweep_group$rsize
+```
+
+## effect of ensemble size
+
+```{r}
+rsize_labels = c("2^0 %*% 10",
+                 "2^1 %*% 10",
+                 "2^2 %*% 10",
+                 "2^3 %*% 10",
+                 "2^4 %*% 10",
+                 "2^5 %*% 10",
+                 "2^6 %*% 10",
+                 "2^7 %*% 10")
+
+sweep_group %>%
+  mutate(esize = factor(esize, levels = c("1", "2", "4", "8")),
+         rsize = factor(rsize, labels = rsize_labels),
+         tsigma = factor(tsigma)) %>%
+  ggplot(aes(x=esize, y=acc)) +
+    stat_summary(fun=mean, aes(group=rsize, color=rsize), geom="line", size=1) +
+    stat_summary(fun=mean, aes(group=rsize, color=rsize), geom="point", size=2) +
+    stat_summary(fun=mean, aes(group=1), geom="line", size=1.5, color = "black") +
+    stat_summary(fun=mean, aes(group=1), geom="point", size=2.5, color = "black") +
+    stat_summary(fun.data = mean_se, aes(group=1), geom="errorbar", width=0.2, size=1.5) +
+    scale_discrete_manual(aes = c("colour", "fill"),
+                          values = c("#D4B800", "#CFA001", "#C97000", "#CA2500",
+                                     "#B10000", "#850000", "#590000", "#2C0000"),
+                       labels = parse(text = rsize_labels)) +
+    labs(x=expression(italic(E)),
+         y=expression(italic(P[collective])),
+         color=expression(italic(N[res])),
+         fill=expression(italic(N[res]))) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank(),
+            legend.title = element_text(size=28),
+            legend.text = element_text(size=26),
+            legend.key.spacing.y = unit(0.5, "cm"), 
+            axis.text = element_text(size=26),
+            axis.title = element_text(size=28),
+            strip.text = element_text(size=28))
+```
+
+## matched budget
+
+```{r}
+# across tsigma
+
+# sweep_group %>%
+#   mutate(esize = as.factor(esize),
+#          budget = as.factor(budget)) %>%
+#   ggplot(aes(x=budget, y=acc, group=esize, color=esize, fill=esize)) +
+#     facet_wrap(~tsigma) +
+#     geom_line() +
+#     geom_ribbon(aes(ymin=acc-se, ymax=acc+se), alpha=0.2, linetype=0) +
+#     labs(x=expression("budget (total " ~ italic(N)[res] ~ ")"),
+#          y=expression(italic(P[collective])),
+#          color="ensemble size", fill="ensemble size") +
+#     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+#     theme_minimal() +
+#     theme(legend.title = element_text(size=28),
+#           legend.text = element_text(size=26),
+#           legend.position = "top",
+#           legend.key.spacing = unit(1.5, 'cm'),
+#           axis.text.x = element_text(angle = 45),
+#           axis.text = element_text(size=26),
+#           axis.title = element_text(size=28),
+#           strip.text = element_text(size=28),
+#           plot.margin = margin(t = 5.5, r = 25, b = 5.5, l = 5.5))
+```
+
+```{r}
+budget_labels = c("2^0 %*% 10",
+                  "2^1 %*% 10",
+                  "2^2 %*% 10",
+                  "2^3 %*% 10",
+                  "2^4 %*% 10",
+                  "2^5 %*% 10",
+                  "2^6 %*% 10",
+                  "2^7 %*% 10",
+                  "2^8 %*% 10",
+                  "2^9 %*% 10",
+                  "2^10 %*% 10")
+
+sweep_group %>%
+  mutate(esize = as.factor(esize),
+         budget = factor(budget, labels = budget_labels)) %>%
+  ggplot(aes(x=budget, y=acc, group=interaction(esize, tsigma), linetype=esize, color=esize, fill=esize)) +
+    stat_summary(fun=mean, aes(group=esize), geom="line", linewidth=1.5) +
+    stat_summary(fun.data = mean_se, aes(group=esize), geom="ribbon", alpha=0.2, linetype=0) +
+    labs(x=expression("budget (total " ~ italic(N)[res] ~ ")"),
+         y=expression(italic(P[collective])),
+         color=expression(italic(E)), fill=expression(italic(E)), linetype = expression(italic(E))) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    scale_x_discrete(labels = parse(text = budget_labels)) +
+    scale_color_manual(values = c("#F45100", "#FFC400",
+                                  "#E91E8C", "#7A2E00", "#0057B8")) +
+    scale_fill_manual(values = c("#F45100", "#FFC400",
+                                 "#E91E8C", "#7A2E00", "#0057B8")) +
+    scale_linetype_manual(values = c(1, 2, 3, 4, 6)) +
+    theme_minimal() +
+    theme(legend.title = element_text(size=28),
+          legend.text = element_text(size=26),
+          legend.position = "top",
+          legend.key.spacing = unit(1.5, 'cm'),
+          axis.text.x = element_text(angle = 45),
+          axis.text = element_text(size=26),
+          axis.title = element_text(size=28),
+          plot.margin = margin(t = 5.5, r = 25, b = 5.5, l = 5.5))
+```
+
+## efficiency
+
+```{r}
+acc_diff <- sweep_group %>%
+  filter(budget %in% c(80:1280)) %>%
+  select(esize, budget, tsigma, acc) %>%
+  pivot_wider(names_from = esize, values_from = acc) %>%
+  rename("baseline"="1") %>%
+  pivot_longer(cols = c("2", "4", "8"), names_to = "esize", values_to = "acc") %>%
+  mutate(acc_diff = acc / baseline) 
+```
+
+```{r}
+# avg
+
+avg <- acc_diff %>%
+  mutate(esize = factor(esize, levels = c("2", "4", "8")),
+         budget = factor(budget, labels = budget_labels[4:8]),
+         tsigma = as.factor(tsigma)) %>%
+  group_by(esize) %>%
+  summarise(m = mean(acc_diff), se = sd(acc_diff)/sqrt(n()))
+
+p_avg <- ggplot(avg, aes(x = esize, y = m, group=1)) +
+  geom_line(linewidth = 1.5) +
+  geom_point(size = 2.5) +
+  geom_errorbar(aes(ymin=m-se, ymax=m+se), width=0.2, size=1.5) +
+  labs(x = NULL, y = expression(italic(P[collective]/P[solo]))) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    axis.text.y = element_text(size = 26),
+    axis.title.y = element_text(size = 28),
+    panel.grid.minor = element_blank())
+
+# heatmap
+
+p_heat <- acc_diff %>%
+  mutate(esize = factor(esize, levels = c("2", "4", "8")),
+         budget = factor(budget, labels = budget_labels[4:8])) %>%
+  group_by(budget, esize) %>%
+  summarize(acc_diff = mean(acc_diff)) %>%
+  ggplot(aes(x = esize, y = budget, fill = acc_diff)) +
+    geom_tile(color = "white", linewidth = 0.5) +
+    geom_text(aes(label = round(acc_diff,2),
+                  color = ifelse(acc_diff>1.7, "black", "white")), size = 10) +
+    scale_color_identity(guide = "none") +
+    scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(1, 2),
+                                  oob = scales::squish,
+                                  l1=75, p2=5, rev=T,
+                                  labels = scales::percent_format(accuracy = 1), guide = "none") +
+    scale_y_discrete(labels = parse(text = budget_labels[5:8])) +
+    labs(x = expression(italic(E)),
+         y = "budget") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 26),
+          axis.title = element_text(size = 28),
+          legend.title = element_text(size = 28),
+          legend.text = element_text(size = 26),
+          panel.grid = element_blank())
+
+# Combine
+p_avg / p_heat +
+  plot_layout(
+    heights = c(2, 4)
+  )
+```

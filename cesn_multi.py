@@ -14,7 +14,7 @@ model = CesnModel_Multi(ensemble_size=1, nnodes=25, in_plink=0.1, rc_plink=0.1, 
 model.train(inputs=X_train, targets=Y_train, teacherfb_sigma=0.2, reset='zero')
 
 # test
-outputs = model.test(inputs=X_test, targets=Y_test, condition='polycentric', input_sigma=0.5, reset='zero')
+outputs = model.test(inputs=X_test, targets=Y_test, condition='polycentric', input_sigma=0, reset='zero')
 results = model.accuracy(predictions=outputs, targets=Y_test)
 
 print(results)

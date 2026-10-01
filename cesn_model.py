@@ -611,7 +611,7 @@ class CesnModel_V3:
             for t in range(len(x)):
                 # noise inputs
                 noise1 = (np.random.randn(len(x[t])) * input_sigma[0])
-                noise2 = (np.random.randn(len(x[t])) * input_sigma[1])
+                noise2 = noise1 # (np.random.randn(len(x[t])) * input_sigma[1]) # identical noise across ESNs
 
                 if t==0:
                     fb = np.array(np.zeros(len(y[t]))) # no feedback on first timestep
@@ -690,7 +690,7 @@ class CesnModel_V3:
 
 
 class CesnModel_Multi:
-    def __init__(self, ensemble_size=None, nnodes=None, in_plink=0.1, rc_plink=0.1, seed=None, print=True):     
+    def __init__(self, ensemble_size=None, nnodes=None, in_plink=0.1, rc_plink=0.1, seed=None, do_print=True):     
         if ensemble_size is None:
             raise ValueError("Build failed. Must specify 'ensemble_size'.")
 
@@ -714,9 +714,9 @@ class CesnModel_Multi:
             seed = norm_param(seed)
 
         # log ensemble size
-        if print:
+        if do_print:
             print(f"Building {ensemble_size}-network ensemble...")
-            
+
         self.ensemble_size = ensemble_size
 
         # create network layers
@@ -806,8 +806,9 @@ class CesnModel_Multi:
                 if t>0:
                     pooled_fb = np.mean(signal_preds[:,t-1], axis=0)
 
+                noise = np.random.randn(len(x[t])) * isigma[0] # identical noise across ESNs
                 for net_idx, (reservoir, readout, sigma) in enumerate(zip(self.reservoirs, self.readouts, isigma)):
-                    noise = np.random.randn(len(x[t])) * sigma
+                    # noise = np.random.randn(len(x[t])) * sigma
 
                     if t==0: # no feedback on first timestep
                         fb = np.zeros(len(y[0]))

@@ -12,7 +12,7 @@ library(patchwork)
 
 ```{r}
 cond = "n0"
-base_path <- paste0("C:/Users/bruna/Desktop/GitHub/coupled-esns/data/v3/", cond, "/")
+base_path <- paste0("data/", cond, "/")
 ```
 
 ```{r, message=F}
@@ -123,7 +123,7 @@ ggplot(diff_avg_total, aes(x=total_nodes, y=tsigma, fill=value)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = paste0("v3_psweep_diffavgtotal_", cond, ".png"), bg = "white", width=6, height=7)
+# ggsave(filename = paste0("v3_psweep_diffavgtotal_", cond, ".png"), bg = "white", width=6, height=7)
 ```
 
 ```{r}
@@ -143,7 +143,7 @@ ggplot(diff_max, aes(x=rsize, y=tsigma, fill=value)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = paste0("v3_psweep_diffmax_", cond, ".png"), bg = "white", width=6, height=7)
+# ggsave(filename = paste0("v3_psweep_diffmax_", cond, ".png"), bg = "white", width=6, height=7)
 ```
 
 
@@ -174,7 +174,7 @@ ggplot(diff_dd, aes(x=rsize, y=tsigma, fill=diff)) +
         strip.text = element_text(size=10),
         legend.title = element_text(size=10, angle = -90, vjust = 1))
 
-ggsave(filename = paste0("v3_psweep_diffdd_", cond, ".png"), bg = "white", width=4, height=7)
+# ggsave(filename = paste0("v3_psweep_diffdd_", cond, ".png"), bg = "white", width=4, height=7)
 ```
 
 
@@ -426,3 +426,141 @@ ggplot(psweep_df, aes(x = rsize, y = tsigma, z = m)) +
 
 # ggsave(filename = "manuscript_figs/pweep_full.png", bg = "white", width = 21, height = 7)
 ```
+
+# are dyads more efficient?
+
+```{r}
+base_path <- paste0("data/matched_budget/")
+```
+
+```{r, message=F}
+batch_1 <- read_csv(paste0(base_path, "psweep_same_batch_1.csv"))
+batch_2 <- read_csv(paste0(base_path, "psweep_same_batch_2.csv"))
+batch_3 <- read_csv(paste0(base_path, "psweep_same_batch_3.csv"))
+batch_4 <- read_csv(paste0(base_path, "psweep_same_batch_4.csv"))
+batch_5 <- read_csv(paste0(base_path, "psweep_same_batch_5.csv"))
+batch_6 <- read_csv(paste0(base_path, "psweep_same_batch_6.csv"))
+
+sweep <- rbind(batch_1, batch_2, batch_3, batch_4, batch_5, batch_6)
+```
+
+```{r}
+sweep_cleaned <- sweep %>% 
+  filter(condition=="auto" | (condition == "poly") & measure == "joint") %>%
+  mutate(measure = case_when(
+    condition=="auto" & measure=="joint" ~ "dyad_self",
+    condition=="poly" ~ "dyad_pooled",
+    measure=="upper" ~ "max",
+    measure=="lower" ~ "min",
+    measure=="avg" ~ "avg",
+    TRUE ~ measure
+  )) %>%
+  mutate(tsigma = factor(tsigma_1),
+         rsize = factor(rsize_1),
+         measure = factor(measure, levels = c("min", "avg", "max", "dyad_self", "dyad_pooled"))) %>%
+  select(measure, m, se, tsigma, rsize)
+```
+
+```{r}
+components <- sweep_cleaned %>%
+  filter(measure=="avg") %>%
+  select(measure, m, tsigma, rsize) %>%
+  group_by(tsigma) %>%
+  mutate(diff = m - lag(m)) %>%
+  filter(rsize != 50) %>%
+  mutate(comp = case_when(
+    diff > 0 ~ "dyad components worse",
+    diff < 0 ~ "dyad components better",
+    diff == 0 ~ "dyad components as-good"
+  )) %>%
+  select(tsigma, comp, rsize, measure)
+
+psweep_df <- sweep_cleaned %>%
+  filter(measure %in% c("avg", "dyad_self", "dyad_pooled")) %>%
+  left_join(components)
+```
+
+```{r}
+txt_col <- ifelse(round(psweep_df$m, 2) >= 0.6, "black", "white")
+
+ggplot(psweep_df, aes(x=rsize, y=tsigma, fill=round(m, 2))) +
+ facet_grid(~measure, labeller = labeller(measure = c("dyad_self" = "no coupling,\nself-feedback", "dyad_pooled" = "coupling via\npooled-feedback"))) +
+ geom_tile(color="white") +
+ scale_fill_continuous_sequential(palette="viridis", oob = scales::squish, rev=F,
+                                 guide=guide_colorbar(label=F, title.position="right",
+                                                      title.hjust = 0.5, barwidth = 1, barheight = 25)) +
+ geom_text(aes(label=round(m, 2)), color=txt_col, size = 2.5) +
+ labs(x = "budget", fill="pcorrect") +
+ theme_minimal() +
+ theme(axis.text = element_text(size=8),
+       axis.title = element_text(size=10),
+       strip.text = element_text(size=10),
+       legend.title = element_text(size=10, angle = -90, vjust = 1))
+```
+
+```{r}
+diff_matched <- psweep_df %>%
+  mutate(total = case_when(
+    measure!="avg" ~ 2*as.numeric(as.character(rsize)),
+    T ~ as.numeric(as.character(rsize)))) %>%
+  select(!c(rsize, se, comp)) %>%
+  pivot_wider(names_from = "measure", values_from = "m") %>%
+  drop_na() %>%
+  mutate(dyad_self = dyad_self-avg,
+         dyad_pooled = dyad_pooled-avg) %>%
+  select(tsigma, total, dyad_self, dyad_pooled) %>%
+  pivot_longer(cols = c(dyad_self, dyad_pooled), names_to = "measure", values_to = "value")
+
+diff_matched$measure <- factor(diff_matched$measure, levels = c("dyad_self", "dyad_pooled"))
+diff_matched$total <- factor(diff_matched$total)
+```
+
+```{r}
+txt_col <- ifelse(abs(round(diff_matched$value, 2)) >= 0.1, "black", "white")
+
+ggplot(diff_matched, aes(x=total, y=tsigma, fill=round(value,2))) +
+  facet_grid(~measure, labeller = labeller(measure = c("dyad_self" = "no coupling,\nself-feedback", "dyad_pooled" = "coupling via\npooled-feedback"))) +
+  geom_tile(color="white") +
+  scale_fill_continuous_diverging(palette="berlin",
+                                  limits=c(-0.1, 0.1), oob = scales::squish,
+                                  l1=75, p2=5, rev=T,
+                                  guide = guide_colorbar(label=F,
+                                                         title.position="right",
+                                                         title.hjust = 0.5,
+                                                         barwidth = 1,
+                                                         barheight = 25)) +
+  geom_text(aes(label = round(value, 2)), color=txt_col, size = 3) +
+  labs(x = "budget", fill="pcorrect") +
+  theme_minimal() +
+  theme(axis.text = element_text(size=8, angle=45),
+        axis.title = element_text(size=10),
+        strip.text = element_text(size=10),
+        legend.title = element_text(size=10, angle = -90, vjust = 1))
+```
+
+```{r}
+trend_plot <- psweep_df %>%
+  mutate(total = case_when(
+    measure %in% c("dyad_self", "dyad_pooled") ~ as.numeric(as.character(rsize))*2,
+    T ~ as.numeric(as.character(rsize)))) %>%
+  filter(total > 50, total < 3200) %>%
+  mutate(total = as.factor(total))
+
+ggplot(trend_plot, aes(x=total, y=m, group = measure, color = measure, fill = measure)) +
+  facet_wrap(~tsigma) +
+  geom_line() +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.2, linetype = 0) +
+  labs(x = "budget") +
+  theme_minimal() +
+  theme(axis.text = element_text(angle=45)) 
+```
+
+```{r}
+ggplot(diff_matched %>% group_by(tsigma, measure) %>% summarize(m=mean(value), se=sd(value)/sqrt(n())),
+       aes(x=tsigma, y=m, group = measure, color = measure, fill = measure)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = m - se, ymax = m + se), alpha = 0.2, linetype = 0) +
+  labs(y="dyad - avg (matched)") +
+  theme_minimal()
+```
+
