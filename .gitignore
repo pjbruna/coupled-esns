@@ -34,3 +34,6 @@ __pycache__/
 archive/
 # R scripts/
 speaker_figs/
+param_plots/
+ratio_plots/
+readout_plots/

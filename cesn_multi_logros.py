@@ -10,7 +10,7 @@ rpy.verbosity(0)
 global_seed = 42
 rng = np.random.default_rng(global_seed)
 
-base_path = f"data/v3/speed_acc/800_02_20/predictions"
+base_path = f"data/predictions"
 runs = 20
 
 

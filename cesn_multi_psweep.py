@@ -169,7 +169,7 @@ if __name__ == "__main__":
     global_seed = 42
     np.random.seed(global_seed)
     runs = 10 # simulations per parameterization
-    base_path = f"data/v3/temp/psweep" # readouts_n=2_autocentric/psweep"
+    base_path = f"data/psweep"
 
     # redirect stdout and stderr to a file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -180,8 +180,8 @@ if __name__ == "__main__":
     sys.stderr = main_log
 
     # hyperparams
-    esize_range =   [4]                                # ensemble size
-    rsize_range =   [2560]       # reservoir size
+    esize_range =   [1,2,4,8,16]                                # ensemble size
+    rsize_range =   [10,20,40,80,160,320,640,1280]              # reservoir size
     plink_range =   [0.1]                                       # input/fb connectivity
     tsigma_range =  [0.2, 0.4, 0.8, 1.6, 3.2, 6.4]              # noise added to teacher forcing
     # rconn_range =   []                                        # reservoir internal connectivity
